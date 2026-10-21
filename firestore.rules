@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function adminUid() { return 'REEMPLAZA_UID_ADMIN'; }
+    function isAdmin() { return signedIn() && request.auth.uid == adminUid(); }
+    function bounded(v, lo, hi) { return v is number && v >= lo && v <= hi; }
+    function validPlace(d) {
+      return d.keys().hasAll(['name','type','lat','lng','radius','limit_db','limit_note','revision','updatedAt'])
+        && d.keys().hasOnly(['name','type','lat','lng','radius','limit_db','limit_note','revision','updatedAt'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 120
+        && d.type in ['Hospital','Hogar de adultos mayores','Escuela','Salón de eventos','Otro']
+        && bounded(d.lat,-90,90) && bounded(d.lng,-180,180) && bounded(d.radius,10,5000)
+        && (d.limit_db == null || bounded(d.limit_db,0,150))
+        && d.limit_note is string && d.limit_note.size() <= 300
+        && d.revision is int && d.revision > 0 && d.updatedAt == request.time;
+    }
+    function validSettings(d) {
+      return d.keys().hasAll(['warnDigital','limitDigital','warnSpl','limitSpl','bandLimit','hold','schedule','levelProfile','revision','updatedAt'])
+        && d.keys().hasOnly(['warnDigital','limitDigital','warnSpl','limitSpl','bandLimit','hold','schedule','levelProfile','revision','updatedAt'])
+        && bounded(d.warnDigital,-110,0) && bounded(d.limitDigital,-110,0) && d.warnDigital < d.limitDigital
+        && bounded(d.warnSpl,0,150) && bounded(d.limitSpl,0,150) && d.warnSpl < d.limitSpl
+        && bounded(d.bandLimit,-110,0) && bounded(d.hold,1,60)
+        && d.schedule == false && d.levelProfile == 2
+        && d.revision is int && d.revision > 0 && d.updatedAt == request.time;
+    }
+    match /places/{id} {
+      allow read: if signedIn();
+      allow create: if isAdmin() && validPlace(request.resource.data) && request.resource.data.revision == 1;
+      allow update: if isAdmin() && validPlace(request.resource.data) && request.resource.data.revision == resource.data.revision + 1;
+      allow delete: if isAdmin();
+    }
+    match /settings/global {
+      allow read: if signedIn();
+      allow create: if isAdmin() && validSettings(request.resource.data) && request.resource.data.revision == 1;
+      allow update: if isAdmin() && validSettings(request.resource.data) && request.resource.data.revision == resource.data.revision + 1;
+      allow delete: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

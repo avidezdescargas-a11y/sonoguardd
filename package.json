@@ -1,0 +1,18 @@
+{
+  "name": "sonoguard-github-firebase",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check public/app.js && node --check public/firebase-service.js && node --check public/data-model.js && node tests/model.test.mjs",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-sonoguard \"node --test tests/firestore.rules.test.mjs\""
+  },
+  "devDependencies": {
+    "firebase": "13.1.0",
+    "@firebase/rules-unit-testing": "6.0.0",
+    "firebase-tools": "15.34.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
