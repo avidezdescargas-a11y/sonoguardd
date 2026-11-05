@@ -1,4 +1,4 @@
-# SonoGuard IA — asistente flotante y guardado automático de evidencia
+# SonoGuard IA — avisos informativos de ruido, asistente flotante y foto automática
 
 Versión integrada con el SonoGuard original. Publicación: GitHub Pages para la interfaz; Firebase Authentication, Firestore, Storage y Cloud Functions para funciones privadas y OpenAI.
 
@@ -7,12 +7,12 @@ Versión integrada con el SonoGuard original. Publicación: GitHub Pages para la
 - **IA flotante en todo el panel** (esquina inferior derecha): al tocar el icono `✦ IA` se abre el chat con «¡Hola! Soy SonoGuard IA. ¿En qué puedo ayudarte?». Se usa la sesión actual de Firebase; **no hay segundo login ni es necesario tomar una foto para conversar**.
 - **Cámara en vivo** en `📸 Evidencia + IA`. Fotograma con hora, lugar y lectura acústica (dBFS digital o SPL declarado). No admite subir fotos desde la galería.
 - **Guardado automático al pulsar «Tomar foto ahora»**, sin diálogo de confirmación extra (el navegador aún puede consultar dónde guardar las descargas). Se ve el aviso «Guardando…» y después «Foto guardada» o un error. La imagen se guarda **privadamente en Firebase Storage**, y el registro en `sgEvidence`. Se puede eliminar en «Mi historial». Antes de pulsar el botón, la pantalla advierte el guardado. Si Firebase falla, la imagen permanece visible y se puede descargar como JPG.
-- **Nombre completo solo al compartir**: al pulsar la foto o el botón de WhatsApp se pide nombre y apellidos, se descarga una **copia** de la imagen con el nombre y se abre la conversación de **prueba** al **75830320**. El usuario adjunta el JPG manualmente y decide si enviar; nada se envía automáticamente. La foto del historial conserva el campo `ownerName` vacío hasta ese momento; la copia para WhatsApp no modifica el original guardado.
+- **Nombre completo solo al compartir**: al pulsar la foto o el botón de WhatsApp se pide nombre y apellidos, se descarga una **copia** de la imagen con el nombre y se abre una conversación con un **aviso informativo de prueba** al **75830320**, que pide una revisión de la zona si procede. El usuario adjunta el JPG manualmente y decide si enviar; nada se envía automáticamente. La foto del historial conserva el campo `ownerName` vacío hasta ese momento; la copia para WhatsApp no modifica el original guardado.
 - Mantiene analizador, mapa, hospitales, escuelas, lugares, umbrales, inicio de sesión y roles originales.
 
 **Permisos:** la aplicación no muestra un consentimiento adicional de guardado cada vez, pero el navegador debe autorizar el acceso a cámara y micrófono, y a geolocalización si se solicita. El navegador o dispositivo también podría pedir confirmación para descargar archivos. No se pueden eludir esos permisos.
 
-**Alcance:** No es una plataforma de denuncias oficiales. Los datos dBFS **no** son decibelios ambientales certificados. El contacto 75830320 es de prueba. El teléfono municipal que figura en la plantilla es una referencia antigua sin vigencia verificada.
+**Alcance:** Es un prototipo ciudadano para informar problemas de ruido, sin trámites oficiales ni promesas de visita de inspección. Los datos dBFS **no** son decibelios ambientales certificados. El contacto 75830320 es de prueba. El teléfono municipal que figura en la plantilla es una referencia antigua sin vigencia verificada.
 
 ## Cómo publicar
 

@@ -15,7 +15,7 @@ function addMessage(text,kind='assistant'){
 }
 function welcome(){
   messages.replaceChildren();history=[];
-  addMessage('¡Hola! 👋 Soy SonoGuard IA. ¿En qué puedo ayudarte? Puedo explicarte las mediciones, orientarte para tomar una foto o preparar un reporte de prueba.');
+  addMessage('¡Hola! 👋 Soy SonoGuard IA. ¿En qué puedo ayudarte? Puedo explicarte las mediciones, orientarte para tomar una foto o preparar un aviso informativo sobre un problema de ruido en tu zona.');
   const quick=document.createElement('div');quick.className='sgChatQuick';
   for(const question of ['¿Qué significa dBFS?','¿Cómo tomo una evidencia?','¿Cómo funciona el historial?']){
     const btn=document.createElement('button');btn.type='button';btn.textContent=question;

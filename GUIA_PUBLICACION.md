@@ -1,7 +1,3 @@
-# ATENCIÓN: CORRECCIÓN DEL PANEL Y ESCALA POSITIVA
-
-Esta versión elimina definitivamente el iframe que ocasionaba paneles repetidos. Se integra la cámara en el mismo documento y se muestra un índice positivo 0–100 cuando no hay calibración (no es dB SPL). No debes volver a subir el ZIP de sensores anterior; usa esta versión. La base existente no se modifica al subir los archivos a GitHub.
-
 # Cómo subir SonoGuard IA directamente a GitHub Pages
 
 **Esta versión guarda las fotos automáticamente en Firebase y agrega un chat flotante.** No se ha desplegado en tu Firebase real ni en tu GitHub. Conserva tu base de datos actual: las colecciones `places` y `settings/global` son las mismas.
@@ -51,7 +47,7 @@ Esto requiere credenciales/permisos de tu proyecto real. Debes tener configurada
 3. Envía una pregunta. El chat debe responder después de instalar la Cloud Function y configurar la clave; no necesitas tomar ninguna foto ni volver a iniciar sesión.
 4. Pulsa `📸 Evidencia + IA`, abre la cámara (esto solicitará cámara, micrófono y GPS automáticamente), espera las lecturas y pulsa `📸 Tomar foto ahora`.
 5. Comprueba que **sin pedir nombre** aparece «Guardando fotografía…» y después «Foto guardada» en el historial y un JPG en descargas. La cámara/micrófono sí requiere autorización del navegador.
-6. Toca la foto o `WhatsApp de prueba`. Escribe nombre completo y acepta mostrarlo en la **copia** para enviar. Se descarga un JPG con nombre y se abre WhatsApp al **75830320** con un borrador de prueba. Adjunta la imagen manualmente. No envíes denuncias reales durante las pruebas.
+6. Toca la foto o `WhatsApp de prueba`. Escribe nombre completo y acepta mostrarlo en la **copia** para enviar. Se descarga un JPG con nombre y se abre WhatsApp al **75830320** con un borrador de prueba. Adjunta la imagen manualmente. Es solo un contacto de prueba: no garantiza atención ni visita municipal.
 7. Verifica que puedes abrir, descargar y eliminar una foto propia. Revisa que otro usuario no pueda consultar fotos ajenas.
 
 ## Notas
@@ -67,4 +63,4 @@ En esta versión se eliminaron el campo dB SPL declarado, la zona manual, el sel
 
 **Despliegue de reglas:** se conserva el bloque exacto de `places` y `settings/global`, pero se endurece la validación de documentos NUEVOS de `sgEvidence`: dBFS de micrófono, coordenadas no nulas, precisión GPS y sin declaración manual. Las evidencias históricas se pueden seguir consultando. Revisa y respalda tus reglas antes de desplegar.
 
-**Límite de verificación:** un navegador no puede demostrar que la señal de audio y el GPS no han sido simulados o manipulados técnicamente; esto reduce la falsificación mediante formularios, pero no constituye prueba pericial ni denuncia oficial.
+**Límite de verificación:** un navegador no puede demostrar que la señal de audio y el GPS no han sido simulados o manipulados técnicamente; esto reduce la falsificación mediante formularios, pero no constituye prueba pericial ni gestión oficial.

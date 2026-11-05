@@ -28,7 +28,7 @@ const displayRecord=r=>positiveLabel(r.db,r.unit);
 const displayMic=()=>lastReading===null?'—':positiveLabel(lastReading,'dBFS');
 const recordDate=r=>r?.capturedAt?.toDate?r.capturedAt.toDate():new Date();
 function make(type,cls,txt){const a=document.createElement(type);if(cls)a.className=cls;if(txt!==undefined)a.textContent=txt;return a;}
-function trialLink(r){const text=`SONOGUARD IA · PROYECTO DE PRUEBA. No es una denuncia oficial.\nNombre completo: ${r.ownerName||''}\nLugar de medición: ${r.zone}.\nLectura orientativa: ${displayRecord(r)}.\nHora (Bolivia): ${formatDate(recordDate(r))}.\nPunto GPS (Google Maps): ${r.lat!==null&&r.lng!==null?googleMapsUrl(r.lat,r.lng):'no disponible'}.\nPrecisión informada por el dispositivo: ±${r.gpsAccuracyM??'?'} m.\nLa foto se adjunta manualmente. No acredita una infracción.`;return `https://wa.me/${TRIAL}?text=${encodeURIComponent(text)}`;}
+function trialLink(r){const text=`SONOGUARD IA · AVISO CIUDADANO INFORMATIVO (PRUEBA).\nHola, quisiera informar que se percibe un problema de ruido en esta zona y solicitar amablemente que se revise la situación y, si corresponde, se programe una visita de verificación.\nPersona que informa: ${r.ownerName||''}\nPunto donde se realizó el registro: ${r.zone}.\nLectura orientativa del micrófono: ${displayRecord(r)}.\nFecha y hora (Bolivia): ${formatDate(recordDate(r))}.\nUbicación en Google Maps: ${r.lat!==null&&r.lng!==null?googleMapsUrl(r.lat,r.lng):'no disponible'}.\nPrecisión GPS reportada: ±${r.gpsAccuracyM??'?'} m.\nLa fotografía se adjunta manualmente. No se atribuye el ruido a una persona o establecimiento.\nEste mensaje se dirige a un número de PRUEBA: no se envía a una autoridad ni garantiza una visita.`;return `https://wa.me/${TRIAL}?text=${encodeURIComponent(text)}`;}
 
 async function loadProfile(){const snap=await getDoc(doc(db,'sgProfiles',user.uid));profile=snap.exists()?snap.data():null;}
 async function loadPlaces(){
@@ -164,15 +164,15 @@ function composePhoto(r,sourceCanvas=rawPhotoCanvas){
   const c=canvas.getContext('2d');if(!c)throw Error('No se pudo crear la imagen.');c.fillStyle='#0b2433';c.fillRect(0,0,canvas.width,canvas.height);c.drawImage(sourceCanvas,0,0,width,imageHeight);
   c.fillStyle='rgba(7,26,40,.94)';c.fillRect(0,imageHeight,width,footerHeight);
   const left=35,available=width-70;
-  c.fillStyle='#72f2d7';c.font='bold 32px system-ui';c.fillText('SONOGUARD IA · FOTO DE EVIDENCIA',left,imageHeight+50);
+  c.fillStyle='#72f2d7';c.font='bold 32px system-ui';c.fillText('SONOGUARD IA · REPORTE INFORMATIVO',left,imageHeight+50);
   c.fillStyle='#fff';c.font='bold 56px system-ui';c.fillText(`${displayRecord(r)}`,left,imageHeight+118);
   c.font='26px system-ui';let y=imageHeight+165;
-  for(const line of [`Fecha y hora (Bolivia): ${formatDate(recordDate(r))}`,`Lugar GPS: ${r.zone}`,`Nombre completo: ${r.ownerName||'No proporcionado'}`]){
+  for(const line of [`Fecha y hora (Bolivia): ${formatDate(recordDate(r))}`,`Lugar GPS: ${r.zone}`,`Persona que informa: ${r.ownerName||'No proporcionado'}`]){
     for(const segment of wrapLines(c,line,available,2)){c.fillText(segment,left,y);y+=32;}y+=2;
   }
   if(r.lat!==null&&r.lng!==null){c.font='22px system-ui';c.fillText(`GPS aprox.: ${r.lat}, ${r.lng} · precisión ±${r.gpsAccuracyM??'?'} m`,left,Math.min(y+4,imageHeight+330));}
   c.font='19px system-ui';c.fillStyle='#d9e4eb';c.fillText(`Contacto de PRUEBA: 75830320 · Referencia municipal 2022: ${OFFICIAL_REFERENCE} (sin confirmar)`,left,imageHeight+370);
-  c.fillStyle='#ffd39d';c.font='bold 18px system-ui';c.fillText('PROYECTO DE PRUEBA · MEDICIÓN NO CERTIFICADA · NO ES DENUNCIA OFICIAL',left,imageHeight+406);
+  c.fillStyle='#ffd39d';c.font='bold 18px system-ui';c.fillText('REGISTRO INFORMATIVO DE PRUEBA · NO ES MEDICIÓN CERTIFICADA',left,imageHeight+406);
   return canvas;
 }
 function canvasJpeg(canvas){return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('No se pudo codificar la imagen.')),'image/jpeg',.83));}
@@ -252,15 +252,15 @@ async function submitReporter(e){
   // Abrir de forma inmediata desde el evento del usuario para evitar bloqueos de ventanas.
   const whatsAppWindow=window.open('about:blank','_blank');
   $('reporter-dialog').close();
-  const btn=$('confirm-reporter');busy(btn,true,'Descargar foto y abrir WhatsApp');
+  const btn=$('confirm-reporter');busy(btn,true,'Preparar aviso y abrir WhatsApp');
   try{
     const blob=await sharedImage(record);
     downloadJpg(blob);
     if(whatsAppWindow)whatsAppWindow.location.replace(trialLink(record));
     else {const link=make('a');link.href=trialLink(record);link.target='_blank';link.rel='noopener noreferrer';document.body.append(link);link.click();link.remove();}
-    notify('Foto con tu nombre descargada. WhatsApp de PRUEBA abierto: adjunta la imagen y revisa antes de enviar.');
+    notify('Aviso informativo preparado. Foto con tu nombre descargada y WhatsApp de PRUEBA abierto: adjunta la imagen, revisa el texto y decide si deseas enviarlo.');
   }catch(err){whatsAppWindow?.close();notify('No se pudo preparar la imagen: '+errorText(err),true);}
-  finally{busy(btn,false,'Descargar foto y abrir WhatsApp');}
+  finally{busy(btn,false,'Preparar aviso y abrir WhatsApp');}
 }
 async function aiAnalysis(question=''){
   if(!currentRecord?.id)return notify('Para usar IA, primero guarda esta foto en tu historial privado de Firebase.',true);
@@ -272,11 +272,11 @@ async function printReport(){
   if(!currentRecord||!currentImageBlob)return;
   const popup=window.open('','_blank');if(!popup)return notify('Habilita ventanas emergentes para imprimir.',true);
   const r=currentRecord;const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-  const reader=new FileReader();reader.onload=()=>{popup.document.open();popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte SonoGuard</title><style>body{font:16px system-ui;color:#142632;max-width:880px;margin:auto;padding:25px}img{width:100%;object-fit:contain}.warn{border:1px solid #777;padding:15px}button{padding:12px}@media print{button{display:none}}</style></head><body><h1>SonoGuard IA · Evidencia de prueba</h1><img alt="Fotografía de medición" src="${reader.result}"><p><b>Nombre:</b> ${escape(r.ownerName||'No declarado')}<br><b>Lectura:</b> ${escape(displayRecord(r))}<br><b>Lugar:</b> ${escape(r.zone)}<br><b>Fecha y hora:</b> ${escape(formatDate(recordDate(r)))}</p>${currentAnalysis?`<p>${escape(currentAnalysis)}</p>`:''}<p class="warn">Proyecto académico de prueba. Medición no certificada, no equivale a denuncia oficial. Contacto de prueba 75830320; referencia municipal publicada en 2022 ${OFFICIAL_REFERENCE} (vigencia sin confirmar).</p><button onclick="window.print()">Imprimir / Guardar PDF</button></body></html>`);popup.document.close();};reader.readAsDataURL(currentImageBlob);
+  const reader=new FileReader();reader.onload=()=>{popup.document.open();popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte SonoGuard</title><style>body{font:16px system-ui;color:#142632;max-width:880px;margin:auto;padding:25px}img{width:100%;object-fit:contain}.warn{border:1px solid #777;padding:15px}button{padding:12px}@media print{button{display:none}}</style></head><body><h1>SonoGuard IA · Evidencia de prueba</h1><img alt="Fotografía de medición" src="${reader.result}"><p><b>Nombre:</b> ${escape(r.ownerName||'No declarado')}<br><b>Lectura:</b> ${escape(displayRecord(r))}<br><b>Lugar:</b> ${escape(r.zone)}<br><b>Fecha y hora:</b> ${escape(formatDate(recordDate(r)))}</p>${currentAnalysis?`<p>${escape(currentAnalysis)}</p>`:''}<p class="warn">Registro ciudadano informativo de prueba. Medición no certificada. No activa visitas ni trámites oficiales. Contacto de prueba 75830320; referencia municipal publicada en 2022 ${OFFICIAL_REFERENCE} (vigencia sin confirmar).</p><button onclick="window.print()">Imprimir / Guardar PDF</button></body></html>`);popup.document.close();};reader.readAsDataURL(currentImageBlob);
 }
 function historyCard(data,id){
   const card=make('article','history-card');card.append(make('h3','',`${number(data.db)} ${data.unit}`));
-  card.append(make('p','meta',`${formatDate(recordDate(data))} · ${data.zone}`));card.append(make('p','meta',`Nombre del denunciante: ${data.ownerName||'se solicita al compartir'}`));
+  card.append(make('p','meta',`${formatDate(recordDate(data))} · ${data.zone}`));card.append(make('p','meta',`Persona que informa: ${data.ownerName||'se solicita al compartir'}`));
   const image=make('img');image.alt='Foto privada de evidencia';image.loading='lazy';card.insertBefore(image,card.firstChild);
   getBlob(storageRef(storage,data.photoPath)).then(blob=>{const url=URL.createObjectURL(blob);image.src=url;image.addEventListener('load',()=>setTimeout(()=>URL.revokeObjectURL(url),20000),{once:true});}).catch(()=>{image.alt='Foto no disponible';});
   const row=make('div','buttons'),see=make('button','secondary','Ver evidencia'),del=make('button','ghost','Eliminar');

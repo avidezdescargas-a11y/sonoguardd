@@ -10,13 +10,13 @@
 <body>
   <header class="topbar"><div class="brand"><span class="brand-mark">◉</span><div><strong>SonoGuard <span>IA</span></strong><small>Cámara en vivo · Proyecto ciudadano La Paz</small></div></div><nav><a href="./index.html">← Panel principal</a></nav></header>
   <main>
-    <div id="notice" class="notice">PROYECTO ACADÉMICO DE PRUEBA · No presenta denuncias oficiales. Sin calibración se muestra un índice digital relativo de 0 a 100, no un nivel ambiental certificado.</div>
+    <div id="notice" class="notice">PROYECTO ACADÉMICO DE PRUEBA · Registro ciudadano informativo de ruido. No solicita visitas oficiales automáticamente. Sin calibración se muestra un índice digital relativo de 0 a 100, no un nivel ambiental certificado.</div>
     <section id="signin" class="panel narrow hidden"><h1>Abre SonoGuard con tu sesión</h1><p>Este módulo comparte la sesión de Firebase del panel principal. No necesitas iniciar sesión una segunda vez.</p><a class="button-link" href="./index.html">Ir a SonoGuard e iniciar sesión</a></section>
     <div id="workspace" class="hidden">
-      <div class="heading"><div><span class="eyebrow">Integrado en tu cuenta actual</span><h1>Evidencia acústica en vivo</h1><p>Abre la cámara y SonoGuard activará el micrófono y solicitará el GPS. Cuando ambos estén listos, toma la foto: se guardará con los datos automáticos en tu historial privado de Firebase. El nombre se solicita solo al preparar WhatsApp.</p></div><span id="user-tag" class="tag">Sesión activa</span></div>
+      <div class="heading"><div><span class="eyebrow">Integrado en tu cuenta actual</span><h1>Informar un problema de ruido</h1><p>Abre la cámara y SonoGuard activará el micrófono y solicitará el GPS. Cuando ambos estén listos, toma la foto: se guardará con los datos automáticos en tu historial privado de Firebase. El nombre se solicita únicamente si decides compartir el aviso por WhatsApp.</p></div><span id="user-tag" class="tag">Sesión activa</span></div>
       <div class="columns">
         <section class="panel" aria-labelledby="camera-title">
-          <h2 id="camera-title">1. Cámara en vivo</h2>
+          <h2 id="camera-title">1. Cámara en vivo para registrar la zona</h2>
           <div class="camera-stage" id="camera-stage">
             <video id="camera-video" autoplay playsinline muted aria-label="Vista previa de la cámara en tiempo real"></video>
             <div class="camera-empty" id="camera-empty"><span class="camera-symbol">📷</span><strong>Activa la cámara para comenzar</strong><small>Solo se captura una foto cuando pulsas «Tomar foto ahora».</small></div>
@@ -42,15 +42,15 @@
         </section>
       </div>
       <section id="preview-panel" class="panel hidden">
-        <h2>3. Foto capturada con datos automáticos</h2>
-        <p class="muted">La imagen conserva el punto GPS del dispositivo, la fecha, la hora y la lectura digital capturada. Ya se ha iniciado el guardado privado automático. Para compartirla se solicitará tu nombre completo y se creará una copia con el nombre. La foto se descarga: <strong>WhatsApp no permite adjuntarla automáticamente mediante un enlace a un número específico</strong>.</p>
+        <h2>3. Foto informativa de la zona</h2>
+        <p class="muted">La foto informa de un problema de ruido en una zona, sin atribuir responsabilidad a nadie. Conserva el punto GPS del dispositivo, la fecha, la hora y la lectura digital capturada. Se inicia el guardado privado automático. Para compartirla se solicitará tu nombre completo y se creará una copia con el nombre. La foto se descarga: <strong>WhatsApp no permite adjuntarla automáticamente mediante un enlace a un número específico</strong>.</p>
         <img id="preview-image" class="photo-preview" alt="Foto de evidencia acústica con datos de la medición" title="Pulsa para preparar el envío al contacto de prueba" tabindex="0" role="button">
-        <div class="actions"><button id="download-image" class="secondary" type="button">Descargar foto JPG</button><button id="open-trial" class="primary" type="button">WhatsApp de prueba · pedir nombre</button><button id="print-report" type="button" class="ghost">Reporte PDF</button><button id="analyze" class="secondary" type="button">Analizar con IA</button></div>
+        <div class="actions"><button id="download-image" class="secondary" type="button">Descargar foto JPG</button><button id="open-trial" class="primary" type="button">Informar problema por WhatsApp (prueba)</button><button id="print-report" type="button" class="ghost">Reporte PDF</button><button id="analyze" class="secondary" type="button">Analizar con IA</button></div>
         <div class="question-box"><label>Pregunta a la IA sobre esta medición (sin datos personales)<input id="ai-question" maxlength="180" placeholder="Ej. ¿Qué significa esta lectura?"></label><button id="ask-ai" class="secondary" type="button">Preguntar a SonoGuard IA</button></div>
         <div id="analysis-result" class="ai-result hidden" aria-live="polite"></div>
-        <div class="trial-info"><strong>WhatsApp de PRUEBA: 75830320</strong><div>Referencia municipal publicada en 2022: <strong>67123590</strong> (vigencia no confirmada). <a href="https://lapaz.bo/atencion-a-denuncias-2/" target="_blank" rel="noopener noreferrer">Información municipal</a>.</div><small>NO ES DENUNCIA OFICIAL · LA MEDICIÓN NO ESTÁ CERTIFICADA · NO SE ENVÍA NADA AUTOMÁTICAMENTE.</small></div>
+        <div class="trial-info"><strong>Contacto para avisos de PRUEBA: 75830320</strong><div>Referencia municipal publicada en 2022: <strong>67123590</strong> (vigencia no confirmada). <a href="https://lapaz.bo/atencion-a-denuncias-2/" target="_blank" rel="noopener noreferrer">Información municipal</a>.</div><small>AVISO INFORMATIVO DE PRUEBA · MEDICIÓN NO CERTIFICADA · NO ENVÍA MENSAJES NI SOLICITA VISITAS AUTOMÁTICAMENTE.</small></div>
       </section>
-      <section class="panel"><div class="section-heading"><div><h2>4. Mi historial privado en Firebase</h2><p class="muted">Las fotografías se guardan al capturarlas con GPS y micrófono automáticos. Puedes eliminarlas cuando quieras desde aquí. Los hospitales y lugares anteriores de Firestore no se modifican.</p></div><button id="refresh-history" class="secondary" type="button">Actualizar</button></div><div id="history" class="history-grid"><p class="muted">Todavía no hay evidencias guardadas.</p></div></section>
+      <section class="panel"><div class="section-heading"><div><h2>4. Mis registros informativos privados en Firebase</h2><p class="muted">Las fotografías se guardan al capturarlas con GPS y micrófono automáticos. Puedes eliminarlas cuando quieras desde aquí. Los hospitales y lugares anteriores de Firestore no se modifican.</p></div><button id="refresh-history" class="secondary" type="button">Actualizar</button></div><div id="history" class="history-grid"><p class="muted">Todavía no hay evidencias guardadas.</p></div></section>
       <section class="panel"><h2>5. Tendencias</h2><p class="muted">Valores de tus registros guardados (separados por escala, sin equivalencia legal).</p><div id="trends" class="trend-grid"><p class="muted">Guarda varias mediciones para ver tendencias.</p></div></section>
       <section id="admin-section" class="panel hidden"><h2>Registros administrativos · últimos datos</h2><p class="muted">Solo metadatos; las fotos de otras cuentas siguen siendo privadas.</p><div id="admin-list"></div></section>
     </div>
@@ -58,12 +58,12 @@
   </main>
   <dialog id="reporter-dialog" aria-labelledby="reporter-title">
     <form id="reporter-form" class="formgrid">
-      <h2 id="reporter-title">Nombre completo del denunciante</h2>
+      <h2 id="reporter-title">Nombre completo de quien informa</h2>
       <p id="reporter-help" class="muted small">Tu nombre aparecerá en la copia que vas a compartir y en el mensaje de prueba, no se añadirá al historial ya guardado.</p>
       <label>Nombre y apellidos completos <span class="required">*</span><input id="reporter-name" autocomplete="name" maxlength="100" required placeholder="Ej. María Pérez Mamani"></label>
       <label class="check"><input id="reporter-consent" type="checkbox" required><span>Acepto que mi nombre completo aparezca en la foto y en el mensaje que decida compartir.</span></label>
       <div class="actions"><button id="confirm-reporter" class="primary" type="submit">Continuar</button><button id="cancel-reporter" class="ghost" type="button">Cancelar</button></div>
-      <p class="muted small">El contacto 75830320 es de prueba. WhatsApp solo abrirá un mensaje prellenado; revisa y envíalo tú. Para adjuntar la foto, selecciónala desde tus descargas.</p>
+      <p class="muted small">El 75830320 es un contacto de prueba, no un canal oficial de atención. WhatsApp prepara un aviso informativo: revísalo, adjunta la foto desde Descargas y decide si deseas enviarlo.</p>
     </form>
   </dialog>
   <footer>SONOGUARD IA · Prototipo académico · Las fotos se guardan automáticamente en el historial privado · No sustituye inspección oficial.</footer>
