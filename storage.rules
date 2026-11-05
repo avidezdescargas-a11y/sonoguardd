@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Imágenes de las evidencias: SOLO el dueño autenticado puede leer y escribir.
+    // No creamos enlaces públicos persistentes ni permitimos sobrescribir una foto.
+    match /sgEvidence/{uid}/{filename} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && filename.matches('[a-zA-Z0-9_-]+\\.jpg')
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size < 6 * 1024 * 1024;
+      allow update: if false;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+    match /{file=**} { allow read, write: if false; }
+  }
+}

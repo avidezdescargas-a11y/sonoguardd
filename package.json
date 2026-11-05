@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "check": "node --check public/app.js && node --check public/firebase-service.js && node --check public/data-model.js && node tests/model.test.mjs",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-sonoguard \"node --test tests/firestore.rules.test.mjs\""
+    "test:rules": "firebase emulators:exec --only firestore --project demo-sonoguard \"node --test tests/firestore.rules.test.mjs\"",
+    "check:ia": "node --check public/sonoguard-ia.js && node --test functions/test/logic.test.cjs"
   },
   "devDependencies": {
     "firebase": "13.1.0",

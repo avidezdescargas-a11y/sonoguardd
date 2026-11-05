@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function adminUid() { return 'REEMPLAZA_UID_ADMIN'; }
+    function adminUid() { return 'GUClnsyoTbYcM4KyfLbUBpG1HKv1'; }
     function isAdmin() { return signedIn() && request.auth.uid == adminUid(); }
     function bounded(v, lo, hi) { return v is number && v >= lo && v <= hi; }
     function validPlace(d) {
@@ -36,6 +36,52 @@ service cloud.firestore {
       allow update: if isAdmin() && validSettings(request.resource.data) && request.resource.data.revision == resource.data.revision + 1;
       allow delete: if false;
     }
+    // SONOGUARD_AI_BEGIN: ampliación ADITIVA. No modifica places ni settings/global.
+    function validSgProfile(d) {
+      return d.keys().hasAll(['fullName','organization','type','consent','updatedAt'])
+        && d.keys().hasOnly(['fullName','organization','type','consent','updatedAt'])
+        && d.fullName is string && d.fullName.size() >= 5 && d.fullName.size() <= 100
+        && d.organization is string && d.organization.size() <= 100
+        && d.type in ['ciudadano','estudiante','tecnico','institucion']
+        && d.consent == true && d.updatedAt == request.time;
+    }
+    match /sgProfiles/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if signedIn() && request.auth.uid == uid && validSgProfile(request.resource.data);
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+    function validSgEvidence(d, id) {
+      return d.keys().hasAll(['ownerUid','ownerName','nameMode','db','unit','source','zone','placeName','reportedSource','lat','lng','capturedAt','createdAt','photoPath'])
+        && d.keys().hasOnly(['ownerUid','ownerName','nameMode','db','unit','source','zone','placeName','reportedSource','lat','lng','capturedAt','createdAt','photoPath'])
+        && d.ownerUid == request.auth.uid
+        && d.ownerName is string && d.ownerName.size() >= 5 && d.ownerName.size() <= 100
+        && exists(/databases/$(database)/documents/sgProfiles/$(request.auth.uid))
+        && get(/databases/$(database)/documents/sgProfiles/$(request.auth.uid)).data.fullName == d.ownerName
+        && d.nameMode in ['full','protected']
+        && d.db is number
+        && ((d.unit == 'dBFS' && d.source == 'microfono' && bounded(d.db,-120,0))
+            || (d.unit == 'dB SPL' && d.source == 'declarada' && bounded(d.db,0,160)))
+        && d.zone is string && d.zone.size() >= 3 && d.zone.size() <= 120
+        && d.placeName is string && d.placeName.size() <= 120
+        && d.reportedSource is string && d.reportedSource.size() <= 120
+        && ((d.lat == null && d.lng == null) || (bounded(d.lat,-90,90) && bounded(d.lng,-180,180)))
+        && d.capturedAt is timestamp
+        && d.capturedAt <= request.time + duration.value(5,'m')
+        && d.capturedAt >= request.time - duration.value(1,'h')
+        && d.createdAt == request.time
+        && d.photoPath == 'sgEvidence/' + request.auth.uid + '/' + id + '.jpg';
+    }
+    match /sgEvidence/{id} {
+      allow get, list: if signedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow create: if signedIn() && validSgEvidence(request.resource.data,id);
+      allow update: if false; // Evidencia inmutable.
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+    // sgAiUsage es accesible exclusivamente desde Cloud Functions (Admin SDK).
+    match /sgAiUsage/{id} { allow read, write: if false; }
+    // SONOGUARD_AI_END
+
     match /{document=**} { allow read, write: if false; }
   }
 }
