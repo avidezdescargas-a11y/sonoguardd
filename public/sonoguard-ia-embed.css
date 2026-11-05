@@ -124,3 +124,5 @@
 #sgIaContainer .reading > div > div span{font-size:16px;letter-spacing:normal;color:#a9dcd9;font-weight:500}
 #sgIaContainer .reading > div > div strong{font-size:40px;line-height:1.15;color:#b9fff1;letter-spacing:-1px}
 #sgIaContainer .reading .label-small{font-size:12px;font-weight:750;color:#b6eae9}
+
+#sgIaContainer .history-details{margin:10px 0;padding:10px;border:1px solid #36516b;border-radius:10px;background:#0c2334}

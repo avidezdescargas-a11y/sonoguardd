@@ -22,3 +22,5 @@
 .gps-box strong{font-size:14px;color:#defcf7}.gps-box p{margin:9px 0 11px;overflow-wrap:anywhere}
 .maps-link{display:inline-flex;padding:9px 12px;border-radius:10px;background:#264a60;color:#aeeaf2;font-size:13px;font-weight:750;text-decoration:none}
 .maps-link[hidden]{display:none}
+
+.history-details{margin:10px 0;padding:10px;border:1px solid #36516b;border-radius:10px;background:#0c2334}

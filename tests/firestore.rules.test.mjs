@@ -13,15 +13,28 @@ test('administrador crea, edita y borra; usuario no modifica',async()=>{const db
 test('administrador también debe respetar esquema y revisión',async()=>{const db=env.authenticatedContext(admin).firestore();await assertFails(setDoc(doc(db,'places','bad'),{...sample(),limit_db:180}));const ref=doc(db,'places','x');await assertSucceeds(setDoc(ref,sample()));await assertFails(updateDoc(ref,{revision:1,updatedAt:serverTimestamp()}));await assertFails(updateDoc(ref,{role:'admin',revision:2,updatedAt:serverTimestamp()}))});
 test('ajustes generales reservados al admin y validados',async()=>{const db=env.authenticatedContext(admin).firestore(),ref=doc(db,'settings','global');const config={warnDigital:-25,limitDigital:-12,warnSpl:80,limitSpl:90,bandLimit:-35,hold:3,schedule:false,levelProfile:2,revision:1,updatedAt:serverTimestamp()};await assertSucceeds(setDoc(ref,config));await assertFails(updateDoc(ref,{warnSpl:95,revision:2,updatedAt:serverTimestamp()}));await assertSucceeds(updateDoc(ref,{hold:4,revision:2,updatedAt:serverTimestamp()}));await assertFails(deleteDoc(ref))});
 
-// Ampliación: guardar fotografía privada sin obligar a declarar nombre antes del envío.
-test('evidencia de cámara sin nombre se guarda y es privada', async()=>{
+// Ampliación: solo datos, sin imagen y con GPS opcional.
+test('registro sin GPS se guarda y solo dueño puede verlo y borrarlo', async()=>{
   const db=env.authenticatedContext('student').firestore();
-  const id='evidenciaSinNombre01';
-  const example={ownerUid:'student',ownerName:'',nameMode:'full',db:-32.5,unit:'dBFS',source:'microfono',zone:'Miraflores La Paz',placeName:'',reportedSource:'',lat:null,lng:null,capturedAt:serverTimestamp(),createdAt:serverTimestamp(),photoPath:`sgEvidence/student/${id}.jpg`};
+  const id='evidenciaSinFoto01';
+  const example={ownerUid:'student',ownerName:'',nameMode:'full',db:-32.5,unit:'dBFS',source:'microfono',zone:'Ubicación no disponible',placeName:'',reportedSource:'',lat:null,lng:null,gpsAccuracyM:null,capturedAt:serverTimestamp(),createdAt:serverTimestamp()};
   await assertSucceeds(setDoc(doc(db,'sgEvidence',id),example));
   await assertSucceeds(getDoc(doc(db,'sgEvidence',id)));
   const other=env.authenticatedContext('another').firestore();
   await assertFails(getDoc(doc(other,'sgEvidence',id)));
-  await assertFails(setDoc(doc(other,'sgEvidence','otherEvidence01'),{...example,photoPath:'sgEvidence/another/otherEvidence01.jpg'}));
+  await assertFails(setDoc(doc(other,'sgEvidence','otherEvidence01'),{...example}));
   await assertFails(updateDoc(doc(db,'sgEvidence',id),{ownerName:'Persona Falsa'}));
+  await assertSucceeds(deleteDoc(doc(db,'sgEvidence',id)));
+});
+test('registro con GPS, sin imagen; foto adjunta se rechaza',async()=>{
+  const db=env.authenticatedContext('student').firestore();
+  const example={ownerUid:'student',ownerName:'',nameMode:'full',db:-18.5,unit:'dBFS',source:'microfono',zone:'Punto GPS -16.50, -68.15',placeName:'',reportedSource:'',lat:-16.5,lng:-68.15,gpsAccuracyM:40,capturedAt:serverTimestamp(),createdAt:serverTimestamp()};
+  await assertSucceeds(setDoc(doc(db,'sgEvidence','gps1'),example));
+  await assertFails(setDoc(doc(db,'sgEvidence','badphoto'),{...example,photoPath:'sgEvidence/student/badphoto.jpg'}));
+});
+
+test('registro sin micrófono y sin GPS queda sin valores inventados',async()=>{
+ const db=env.authenticatedContext('student').firestore();
+ const example={ownerUid:'student',ownerName:'',nameMode:'full',db:null,unit:'sin lectura',source:'sin_mic',zone:'Ubicación no disponible',placeName:'',reportedSource:'',lat:null,lng:null,gpsAccuracyM:null,capturedAt:serverTimestamp(),createdAt:serverTimestamp()};
+ await assertSucceeds(setDoc(doc(db,'sgEvidence','sinMic01'),example));
 });

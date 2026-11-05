@@ -4,27 +4,27 @@ import {positiveLabel,positiveValue,positiveUnit} from './audio-display.js';
 import {getApps,initializeApp} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
 import {getAuth,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
 import {getFirestore,collection,doc,setDoc,getDoc,getDocs,deleteDoc,query,where,orderBy,limit,Timestamp,serverTimestamp} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
-import {getStorage,ref as storageRef,uploadBytes,getBlob,deleteObject} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-storage.js';
 import {getFunctions,httpsCallable} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js';
 
 if(!firebaseConfig?.apiKey||!firebaseConfig?.projectId)throw Error('Firebase no configurado');
 const app=getApps().find(a=>a.name==='[DEFAULT]')||initializeApp(firebaseConfig);
-const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app),functions=getFunctions(app,'us-central1');
+const auth=getAuth(app),db=getFirestore(app),functions=getFunctions(app,'us-central1');
 const viewRoot=document.getElementById('sgIaContainer')||document;
 const $=id=>viewRoot.querySelector('#'+(id==='history'&&viewRoot!==document?'sgia-history':id));
 const TRIAL='59175830320',OFFICIAL_REFERENCE='67123590'; // solo referencia municipal de 2022, sin confirmar vigencia
-let user=null,profile=null,places=[],coords=null,locationWatchId=null,locationError='';
-const MAX_GPS_AGE_MS=45000, MAX_GPS_ACCURACY_M=1000;
+let user=null,profile=null,places=[],coords=null,locationWatchId=null,locationError='',gpsInitialRequest=0;
+// Ubicación de navegador: puede venir de GPS, Wi-Fi u otra fuente del sistema.
+const MAX_GPS_AGE_MS=300000, MAX_GPS_ACCURACY_M=20000;
 let cameraStream=null,clockTimer=0,rawPhotoCanvas=null,lastHudRefresh=0,cameraGeneration=0;
 let microphone=null,audioContext=null,audioNode=null,analyzer=null,micFrame=0,lastReading=null,lastReadingAt=0;
 let currentRecord=null,currentImageBlob=null,currentObjectUrl=null,currentAnalysis=null;
 let statusTimer;
 function notify(message,error=false){const el=$('status');el.textContent=message;el.classList.toggle('error',error);el.classList.add('visible');clearTimeout(statusTimer);statusTimer=setTimeout(()=>el.classList.remove('visible'),6800);}
-function errorText(e){const s=String(e?.code||'');if(s.includes('permission-denied'))return 'Permiso denegado. Verifica reglas y usuario de Firebase.';if(s.includes('storage/'))return 'Revisa la activación de Firebase Storage y sus permisos.';return String(e?.message||'Ocurrió un error.').slice(0,250);}
+function errorText(e){const s=String(e?.code||'');if(s.includes('permission-denied'))return 'Acceso denegado en Firestore. Publica firestore.rules del ZIP en el proyecto correcto y entra con tu cuenta.';if(s.includes('failed-precondition'))return 'Firestore no tiene el índice requerido para esta consulta. Prueba actualizar la página o revisar las reglas.';if(s.includes('unavailable'))return 'Sin conexión con Firebase. Revisa Internet e inténtalo nuevamente.';return String(e?.message||'Ocurrió un error.').slice(0,250);}
 function busy(btn,val,original){btn.disabled=val;btn.textContent=val?'Procesando…':original;}
 function formatDate(date){return new Intl.DateTimeFormat('es-BO',{timeZone:'America/La_Paz',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(date);}
 const number=v=>Number(v).toFixed(1);
-const displayRecord=r=>positiveLabel(r.db,r.unit);
+const displayRecord=r=>Number.isFinite(r?.db)?positiveLabel(r.db,r.unit):'Sin lectura de micrófono';
 const displayMic=()=>lastReading===null?'—':positiveLabel(lastReading,'dBFS');
 const recordDate=r=>r?.capturedAt?.toDate?r.capturedAt.toDate():new Date();
 function make(type,cls,txt){const a=document.createElement(type);if(cls)a.className=cls;if(txt!==undefined)a.textContent=txt;return a;}
@@ -58,18 +58,21 @@ function googleMapsUrl(lat,lng){return `https://www.google.com/maps/search/?api=
 function gpsValid(){return coords!==null&&Number.isFinite(coords.accuracyM)&&coords.accuracyM<=MAX_GPS_ACCURACY_M&&Date.now()-coords.observedAt<MAX_GPS_AGE_MS;}
 function readingValid(){return lastReading!==null&&Date.now()-lastReadingAt<2500;}
 function refreshCaptureButton(){
-  const btn=$('create-evidence'),ready=Boolean(cameraStream&&$('camera-video').readyState>=2&&readingValid()&&gpsValid());
+  const btn=$('create-evidence'),cameraReady=Boolean(cameraStream&&$('camera-video').readyState>=2&&$('camera-video').videoWidth);
+  const ready=cameraReady;
   btn.disabled=!ready;
-  btn.title=ready?'Capturar con micrófono y GPS actuales':'Se necesita cámara, lectura reciente del micrófono y GPS reciente (precisión hasta 1 km).';
+  btn.title=!cameraReady?'Primero abre la cámara y espera la imagen en vivo.':
+    !readingValid()?'Capturar sin valor de ruido: el micrófono no está disponible. No se inventarán dB.':
+    gpsValid()?'Capturar con lectura de micrófono y ubicación.':'Capturar con lectura de micrófono; ubicación no disponible.';
 }
 function updateHud(){
   $('hud-time').textContent=formatDate(new Date()).split(',').at(-1)?.trim()||formatDate(new Date());
   $('hud-db').textContent=displayMic();
   $('hud-source').textContent=readingValid()?'Índice relativo de micrófono (no dB SPL)':'Esperando lectura digital del micrófono';
-  $('hud-place').textContent=gpsValid()?`Lugar: ${zoneForGps(coords)}`:'Lugar: esperando GPS…';
+  $('hud-place').textContent=gpsValid()?`Lugar: ${zoneForGps(coords)}`:'Lugar: ubicación no disponible (se puede fotografiar)';
   $('gps-status').textContent=gpsValid()?`${zoneForGps(coords)} · precisión reportada ±${coords.accuracyM} m`:
-    coords?`GPS poco preciso o desactualizado (±${coords.accuracyM} m). Esperando posición reciente…`:
-    (locationError||'Esperando autorización y posición GPS del dispositivo…');
+    coords?`Ubicación del navegador poco precisa o antigua (±${coords.accuracyM} m). Puedes tomar la foto sin ubicación.`:
+    (locationError||'Buscando ubicación del navegador. La cámara puede funcionar sin GPS.');
   const link=$('maps-link');if(coords){link.href=googleMapsUrl(coords.lat,coords.lng);link.hidden=false;}else{link.removeAttribute('href');link.hidden=true;}
   $('mic-status').textContent=readingValid()?'Lectura automática desde el micrófono del dispositivo.':
     microphone?'Esperando audio del micrófono…':'Micrófono no iniciado o permiso pendiente.';
@@ -80,7 +83,7 @@ async function startCamera(){
   const generation=++cameraGeneration;
   const btn=$('start-camera');busy(btn,true,'📷 Abrir cámara y sensores');
   try{
-    if(!navigator.mediaDevices?.getUserMedia)throw Error('La cámara requiere HTTPS y un navegador compatible.');
+    if(!navigator.mediaDevices?.getUserMedia)throw Error('Abre SonoGuard por HTTPS, concede permiso de cámara y usa un navegador compatible.');
     const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
     if(generation!==cameraGeneration){stream.getTracks().forEach(t=>t.stop());return;}
     cameraStream=stream;const video=$('camera-video');video.srcObject=cameraStream;await video.play();
@@ -89,12 +92,12 @@ async function startCamera(){
     startGps();await startMic(generation);
     if(generation!==cameraGeneration)return;
     updateHud();clockTimer=setInterval(updateHud,1000);
-    notify('Cámara activada. El micrófono y el GPS se obtienen automáticamente; espera que ambos estén listos para capturar.');
+    notify('Cámara activada. Puedes fotografiar ya; las lecturas y la ubicación que estén disponibles se incluirán automáticamente.');
   }catch(e){stopCamera();notify('No se pudo abrir la cámara: '+errorText(e),true);}finally{busy(btn,false,'📷 Abrir cámara y sensores');}
 }
 function stopGps(){
   if(locationWatchId!==null&&navigator.geolocation)navigator.geolocation.clearWatch(locationWatchId);
-  locationWatchId=null;coords=null;locationError='';updateHud();
+  locationWatchId=null;gpsInitialRequest++;coords=null;locationError='';updateHud();
 }
 function stopCamera(){
   cameraGeneration++;
@@ -132,24 +135,46 @@ async function startMic(generation=cameraGeneration){
     };tick();
   }catch(e){stopMic();notify('No se pudo usar el micrófono: '+errorText(e),true);}
 }
-function startGps(){
-  if(locationWatchId!==null)return;
-  if(!navigator.geolocation){locationError='Este navegador no ofrece geolocalización.';updateHud();return;}
-  locationError='Buscando ubicación del dispositivo…';updateHud();
-  locationWatchId=navigator.geolocation.watchPosition(p=>{
-    if(!cameraStream)return;
-    const accuracyM=Math.round(p.coords.accuracy);
-    if(!Number.isFinite(p.coords.latitude)||!Number.isFinite(p.coords.longitude)||!Number.isFinite(accuracyM)){locationError='El dispositivo no entregó coordenadas válidas.';updateHud();return;}
-    coords={lat:Math.round(p.coords.latitude*1e4)/1e4,lng:Math.round(p.coords.longitude*1e4)/1e4,accuracyM,observedAt:p.timestamp||Date.now()};
-    locationError='';updateHud();
-  },e=>{
-    if(!cameraStream)return;
-    if(locationWatchId!==null)navigator.geolocation.clearWatch(locationWatchId);locationWatchId=null;
-    locationError=e.code===1?'Permiso de ubicación denegado. Actívalo en los ajustes del navegador.':
-      e.code===2?'No se pudo determinar el GPS. Revisa la ubicación del dispositivo.':'La ubicación está tardando. Reintentando…';
-    coords=null;updateHud();notify(locationError,true);
-  },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+function acceptLocation(position){
+  if(!cameraStream)return;
+  const p=position?.coords, accuracyM=Math.round(p?.accuracy);
+  if(!Number.isFinite(p?.latitude)||!Number.isFinite(p?.longitude)||!Number.isFinite(accuracyM)){
+    locationError='El dispositivo no proporcionó una posición válida.';updateHud();return;
+  }
+  const observedAt=position.timestamp||Date.now();
+  // La posición más reciente se muestra incluso cuando es demasiado imprecisa para guardarla.
+  coords={lat:Math.round(p.latitude*1e5)/1e5,lng:Math.round(p.longitude*1e5)/1e5,
+    accuracyM,observedAt};
+  locationError='';updateHud();
 }
+function gpsErrorMessage(e){
+  if(e?.code===1)return 'Ubicación bloqueada: permite el acceso en el icono del sitio del navegador y activa la ubicación en Windows/Android/iOS.';
+  if(e?.code===2)return 'No se pudo localizar el dispositivo. Activa ubicación del sistema o prueba desde un celular con GPS.';
+  return 'No llegó la ubicación a tiempo. Prueba «Reintentar sensores». La foto funciona sin coordenadas.';
+}
+function startGps(force=false){
+  if(!cameraStream)return;
+  if(!navigator.geolocation){locationError='Este navegador no permite conocer la ubicación. Puedes fotografiar sin coordenadas.';updateHud();return;}
+  if(force)stopGps();
+  if(locationWatchId!==null)return;
+  locationError='Buscando ubicación del dispositivo…';updateHud();
+  const myRequest=++gpsInitialRequest;
+  // Primer intento rápido con cualquier método del navegador (GPS, Wi-Fi o red).
+  try{locationWatchId=navigator.geolocation.watchPosition(acceptLocation,e=>{
+    if(!cameraStream||myRequest!==gpsInitialRequest)return;
+    locationError=gpsErrorMessage(e);updateHud();
+    // No bloquear la cámara; se conserva un GPS válido previo si lo hay.
+    if(e.code===1){navigator.geolocation.clearWatch(locationWatchId);locationWatchId=null;}
+  },{enableHighAccuracy:false,timeout:25000,maximumAge:30000});}
+  catch(e){locationError='El navegador impide obtener la ubicación. La foto aún funciona.';updateHud();}
+  // Segundo intento de mayor precisión. No provoca bloqueo cuando falla.
+  try{navigator.geolocation.getCurrentPosition(acceptLocation,e=>{
+    if(!cameraStream||myRequest!==gpsInitialRequest)return;
+    if(!coords){locationError=gpsErrorMessage(e);updateHud();}
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:30000});}
+  catch(e){if(!coords){locationError='Ubicación no disponible; puedes tomar la foto.';updateHud();}}
+}
+
 function measure(){
   if(!readingValid())throw Error('No hay una lectura reciente del micrófono. Activa sus permisos y espera el valor en vivo.');
   return {db:lastReading,unit:'dBFS',source:'microfono'};
@@ -189,25 +214,25 @@ async function captureNow(){
   busy(btn,true,'📸 Tomar foto ahora');
   try{
     const video=$('camera-video');if(!cameraStream||video.readyState<2||!video.videoWidth)throw Error('Primero abre la cámara y espera la imagen en vivo.');
-    if(!gpsValid())throw Error('Aún no hay ubicación GPS reciente y suficientemente precisa. Activa la ubicación del dispositivo.');
-    const reading=measure(),point={...coords};const now=Timestamp.now();
-    const zone=zoneForGps(point),near=nearestRegisteredPlace(point);
+    const reading=readingValid()?measure():{db:null,unit:'sin lectura',source:'sin_mic'},point=gpsValid()?{...coords}:null;const now=Timestamp.now();
+    const zone=point?zoneForGps(point):'Ubicación no disponible',near=point?nearestRegisteredPlace(point):null;
     const width=Math.min(1600,video.videoWidth),height=Math.round(video.videoHeight*width/video.videoWidth);
     rawPhotoCanvas=document.createElement('canvas');rawPhotoCanvas.width=width;rawPhotoCanvas.height=height;
     rawPhotoCanvas.getContext('2d').drawImage(video,0,0,width,height);
     // La ubicación y la lectura salen de APIs del dispositivo, no de formularios.
     const record={ownerUid:user.uid,ownerName:'',nameMode:'full',db:reading.db,unit:reading.unit,source:reading.source,
-      zone,placeName:near?.name||'',reportedSource:'',lat:point.lat,lng:point.lng,gpsAccuracyM:point.accuracyM,capturedAt:now};
+      zone,placeName:near?.name||'',reportedSource:'',lat:point?.lat??null,lng:point?.lng??null,gpsAccuracyM:point?.accuracyM??null,capturedAt:now};
     const blob=await canvasJpeg(composePhoto(record));showPreview(record,blob);
     downloadJpg(blob);
-    $('auto-save-state').textContent='JPG generado. Guardando fotografía con lectura y GPS en historial privado…';
-    notify('Foto tomada con micrófono y GPS automáticos. Guardando fotografía en tu historial privado de Firebase…');
+    $('auto-save-state').textContent='Descargando foto al dispositivo… Guardando únicamente fecha, ubicación y lectura en Firestore (sin imagen)…';
+    notify('Foto tomada y preparada para descargar. Solo se guardarán los datos en Firebase.');
     try{
-      await persistEvidence(record,blob);
-      $('auto-save-state').textContent='✓ JPG descargado y copia privada guardada en Firebase. Puedes borrarla desde Historial.';
+      await persistEvidence(record);
+      $('auto-save-state').textContent='✓ Foto descargada. Solo datos guardados en Firestore; NO se subió ninguna imagen.';
+      if(!point||reading.db===null)notify('Registro guardado: los sensores no disponibles quedaron indicados, sin datos inventados.');
     }catch(e){
-      $('auto-save-state').textContent='Se generó el JPG, pero no se guardó en Firebase. Puedes descargarlo nuevamente.';
-      notify('La foto está tomada, pero el guardado en Firebase falló: '+errorText(e),true);
+      $('auto-save-state').textContent='Foto lista para descargar, pero el registro de datos no se guardó en Firestore. Usa «Descargar foto JPG» y revisa las reglas.';
+      notify('No se guardaron los datos en Firestore: '+errorText(e),true);
     }
   }catch(e){notify(errorText(e),true);}
   finally{busy(btn,false,'📸 Tomar foto ahora');refreshCaptureButton();}
@@ -220,28 +245,22 @@ function openReporter(){
   $('reporter-consent').checked=false;
   $('reporter-dialog').showModal();
 }
-async function persistEvidence(r,blob){
+async function persistEvidence(r){
   if(r.id)return;
-  const id=doc(collection(db,'sgEvidence')).id,path=`sgEvidence/${user.uid}/${id}.jpg`;
-  // La captura se guarda sin nombre; solo la copia compartida por WhatsApp lo incorpora.
-  const record={...r,ownerUid:user.uid,ownerName:'',createdAt:serverTimestamp(),photoPath:path};
-  const image=storageRef(storage,path);await uploadBytes(image,blob,{contentType:'image/jpeg'});
-  try{await setDoc(doc(db,'sgEvidence',id),record);}catch(e){await deleteObject(image).catch(()=>{});throw e;}
-  currentRecord={...r,id,photoPath:path};await loadHistory();
-  notify('Fotografía guardada automáticamente en tu historial privado.');
+  const id=doc(collection(db,'sgEvidence')).id;
+  // Solo METADATOS, nunca bytes, foto, URL, base64 ni ruta de Storage.
+  const record={ownerUid:user.uid,ownerName:'',nameMode:'full',db:r.db,unit:r.unit,
+    source:r.source,zone:r.zone,placeName:r.placeName||'',reportedSource:'',
+    lat:r.lat,lng:r.lng,gpsAccuracyM:r.gpsAccuracyM,capturedAt:r.capturedAt,
+    createdAt:serverTimestamp()};
+  await setDoc(doc(db,'sgEvidence',id),record);
+  currentRecord={...r,id};
+  await loadHistory();
+  notify('Datos guardados en Firestore. La foto queda solo en tu dispositivo.');
 }
 async function sharedImage(record){
-  if(rawPhotoCanvas)return canvasJpeg(composePhoto(record));
-  if(!currentImageBlob)throw Error('No se encuentra la fotografía.');
-  // Las imágenes guardadas contienen una franja de 430 px añadida por composePhoto.
-  // Recrear la imagen desde su área fotográfica evita duplicar metadatos.
-  const bitmap=await createImageBitmap(currentImageBlob);
-  try{
-    if(bitmap.height<=430)throw Error('La imagen guardada no contiene el formato esperado.');
-    const base=document.createElement('canvas');base.width=bitmap.width;base.height=bitmap.height-430;
-    base.getContext('2d').drawImage(bitmap,0,0,bitmap.width,base.height,0,0,base.width,base.height);
-    return canvasJpeg(composePhoto(record,base));
-  }finally{bitmap.close?.();}
+  if(!rawPhotoCanvas)throw Error('La fotografía ya no está abierta en esta sesión. Toma otra para compartir.');
+  return canvasJpeg(composePhoto(record,rawPhotoCanvas));
 }
 async function submitReporter(e){
   e.preventDefault();if(!currentRecord||!user)return;
@@ -263,7 +282,8 @@ async function submitReporter(e){
   finally{busy(btn,false,'Preparar aviso y abrir WhatsApp');}
 }
 async function aiAnalysis(question=''){
-  if(!currentRecord?.id)return notify('Para usar IA, primero guarda esta foto en tu historial privado de Firebase.',true);
+  if(!currentRecord?.id)return notify('Para analizar esta lectura, primero deben guardarse los datos del registro en Firestore.',true);
+  if(!Number.isFinite(currentRecord.db))return notify('Este registro no tiene lectura del micrófono para analizar. Prueba de nuevo con el permiso activado.',true);
   const btn=$('analyze');busy(btn,true,'Analizar con IA');
   try{const result=await httpsCallable(functions,'analyzeSonoGuardEvidence')({recordId:currentRecord.id,question});currentAnalysis=result.data?.analysis||'Sin respuesta';$('analysis-result').textContent=currentAnalysis;$('analysis-result').classList.remove('hidden');}
   catch(e){notify('IA no disponible: '+errorText(e),true);}finally{busy(btn,false,'Analizar con IA');}
@@ -275,22 +295,67 @@ async function printReport(){
   const reader=new FileReader();reader.onload=()=>{popup.document.open();popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte SonoGuard</title><style>body{font:16px system-ui;color:#142632;max-width:880px;margin:auto;padding:25px}img{width:100%;object-fit:contain}.warn{border:1px solid #777;padding:15px}button{padding:12px}@media print{button{display:none}}</style></head><body><h1>SonoGuard IA · Evidencia de prueba</h1><img alt="Fotografía de medición" src="${reader.result}"><p><b>Nombre:</b> ${escape(r.ownerName||'No declarado')}<br><b>Lectura:</b> ${escape(displayRecord(r))}<br><b>Lugar:</b> ${escape(r.zone)}<br><b>Fecha y hora:</b> ${escape(formatDate(recordDate(r)))}</p>${currentAnalysis?`<p>${escape(currentAnalysis)}</p>`:''}<p class="warn">Registro ciudadano informativo de prueba. Medición no certificada. No activa visitas ni trámites oficiales. Contacto de prueba 75830320; referencia municipal publicada en 2022 ${OFFICIAL_REFERENCE} (vigencia sin confirmar).</p><button onclick="window.print()">Imprimir / Guardar PDF</button></body></html>`);popup.document.close();};reader.readAsDataURL(currentImageBlob);
 }
 function historyCard(data,id){
-  const card=make('article','history-card');card.append(make('h3','',`${number(data.db)} ${data.unit}`));
-  card.append(make('p','meta',`${formatDate(recordDate(data))} · ${data.zone}`));card.append(make('p','meta',`Persona que informa: ${data.ownerName||'se solicita al compartir'}`));
-  const image=make('img');image.alt='Foto privada de evidencia';image.loading='lazy';card.insertBefore(image,card.firstChild);
-  getBlob(storageRef(storage,data.photoPath)).then(blob=>{const url=URL.createObjectURL(blob);image.src=url;image.addEventListener('load',()=>setTimeout(()=>URL.revokeObjectURL(url),20000),{once:true});}).catch(()=>{image.alt='Foto no disponible';});
-  const row=make('div','buttons'),see=make('button','secondary','Ver evidencia'),del=make('button','ghost','Eliminar');
-  const view=async()=>{see.disabled=true;try{showPreview({...data,id},await getBlob(storageRef(storage,data.photoPath)),{fromHistory:true});}catch(e){notify(errorText(e),true);}finally{see.disabled=false;}};
-  see.addEventListener('click',view);image.addEventListener('click',view);
-  del.addEventListener('click',async()=>{if(!confirm('¿Eliminar esta evidencia y su foto? No afecta hospitales ni lugares.'))return;del.disabled=true;try{await deleteObject(storageRef(storage,data.photoPath));await deleteDoc(doc(db,'sgEvidence',id));if(currentRecord?.id===id){$('preview-panel').classList.add('hidden');currentRecord=null;currentImageBlob=null;rawPhotoCanvas=null;clearPhotoUrl();}await loadHistory();notify('Evidencia eliminada.');}catch(e){notify('No se pudo eliminar: '+errorText(e),true);}finally{del.disabled=false;}});
-  row.append(see,del);card.append(row);return card;
+  const card=make('article','history-card');
+  card.append(make('h3','',displayRecord(data)));
+  card.append(make('p','meta',`${formatDate(recordDate(data))} · ${data.zone||'Sin ubicación'}`));
+  card.append(make('p','meta','Registro de datos únicamente. No se almacenó una foto en esta sección.'));
+  const details=make('div','history-details');details.hidden=true;
+  details.append(make('p','meta',`Origen: ${data.source==='microfono'?'micrófono del dispositivo':data.source==='sin_mic'?'sin lectura por falta de micrófono':'lectura histórica'} · Escala original: ${data.unit||'sin identificar'}`));
+  details.append(make('p','meta',`Coordenadas: ${Number.isFinite(data.lat)&&Number.isFinite(data.lng)?`${data.lat}, ${data.lng}`:'No disponibles'}`));
+  details.append(make('p','meta',`Precisión reportada: ${Number.isFinite(data.gpsAccuracyM)?'±'+data.gpsAccuracyM+' m':'no disponible'}`));
+  if(Number.isFinite(data.lat)&&Number.isFinite(data.lng)){
+    const map=make('a','maps-link','Abrir ubicación en Google Maps ↗');
+    map.href=googleMapsUrl(data.lat,data.lng);map.target='_blank';map.rel='noopener noreferrer';details.append(map);
+  }
+  const answer=make('p','ai-result hidden');answer.setAttribute('aria-live','polite');
+  const row=make('div','buttons'),see=make('button','secondary','Ver datos'),analyze=make('button','secondary','Explicar con IA'),del=make('button','ghost','Eliminar registro');
+  see.addEventListener('click',()=>{details.hidden=!details.hidden;see.textContent=details.hidden?'Ver datos':'Ocultar datos';});
+  analyze.addEventListener('click',async()=>{
+    if(!user)return;
+    if(!Number.isFinite(data.db))return notify('No hay lectura de micrófono para analizar con IA.',true);
+    busy(analyze,true,'Explicar con IA');
+    try{
+      const result=await httpsCallable(functions,'analyzeSonoGuardEvidence')({recordId:id,question:''});
+      answer.textContent=result.data?.analysis||'Sin respuesta';answer.classList.remove('hidden');
+    }catch(e){notify('IA no disponible: '+errorText(e),true);}
+    finally{busy(analyze,false,'Explicar con IA');}
+  });
+  del.addEventListener('click',async()=>{
+    if(!confirm('¿Eliminar solo este registro de datos de Firebase? No afecta hospitales ni elimina fotos de tu celular.'))return;
+    del.disabled=true;
+    try{
+      await deleteDoc(doc(db,'sgEvidence',id));
+      if(currentRecord?.id===id){currentRecord={...currentRecord,id:undefined};}
+      await loadHistory();notify('Registro de datos eliminado de Firebase.');
+    }catch(e){notify('No se pudo eliminar: '+errorText(e),true);del.disabled=false;}
+  });
+  row.append(see,analyze,del);card.append(details,answer,row);return card;
 }
 function renderTrends(records){const dest=$('trends');dest.replaceChildren();for(const unit of ['dBFS','dB SPL']){const set=records.filter(r=>r.unit===unit&&Number.isFinite(r.db));const panel=make('div','trend-panel');panel.append(make('h3','',positiveUnit(unit)));if(!set.length){panel.append(make('p','muted small','Sin registros de esta escala.'));dest.append(panel);continue;}const nums=set.map(r=>positiveValue(r.db,r.unit)),median=[...nums].sort((a,b)=>a-b)[Math.floor(nums.length/2)],avg=nums.reduce((a,b)=>a+b,0)/nums.length;panel.append(make('p','trend-stats',`${nums.length} mediciones · Promedio ${avg.toFixed(1)} · Mediana ${median.toFixed(1)} ${positiveUnit(unit)}`));for(const r of set.slice(0,10).reverse()){const row=make('div','trend-row'),bar=make('div','bar');bar.style.width=`${Math.max(2,(positiveValue(r.db,r.unit)/(unit==='dBFS'?100:160))*100)}%`;row.append(make('span','meta',formatDate(recordDate(r)).slice(0,10)),bar,make('span','meta',number(positiveValue(r.db,r.unit))));panel.append(row);}panel.append(make('p','trend-warning','Resumen descriptivo: no determina infracciones ni permite comparar equipos no calibrados.'));dest.append(panel);}}
-async function loadHistory(){if(!user)return;const root=$('history');root.replaceChildren(make('p','muted','Cargando…'));try{const q=query(collection(db,'sgEvidence'),where('ownerUid','==',user.uid),orderBy('createdAt','desc'),limit(50)),snap=await getDocs(q);root.replaceChildren();renderTrends(snap.docs.map(d=>d.data()));if(snap.empty){root.append(make('p','muted','Aún no tienes evidencias guardadas.'));return;}for(const d of snap.docs)root.append(historyCard(d.data(),d.id));}catch(e){root.replaceChildren(make('p','muted','No se pudo cargar el historial. Revisa el índice compuesto y las reglas.'));notify(errorText(e),true);}}
+async function loadHistory(){
+  if(!user)return;
+  const root=$('history');root.replaceChildren(make('p','muted','Cargando datos…'));
+  try{
+    // Solo filtro ownerUid: no necesita índice compuesto (ordenado en el navegador).
+    const q=query(collection(db,'sgEvidence'),where('ownerUid','==',user.uid),limit(100));
+    const snap=await getDocs(q);
+    const rows=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const millis=r=>r.createdAt?.toMillis?.()||r.capturedAt?.toMillis?.()||0;
+    rows.sort((a,b)=>millis(b)-millis(a));
+    root.replaceChildren();renderTrends(rows);
+    if(!rows.length){root.append(make('p','muted','Aún no hay registros de datos. Toma una foto para registrar fecha, hora, ubicación y lectura.'));return;}
+    for(const row of rows)root.append(historyCard(row,row.id));
+  }catch(e){
+    const explain=String(e?.code||'').includes('permission-denied')?
+      'No se pudo leer Firestore: publica las reglas actualizadas en tu proyecto y verifica que estés conectado.':
+      'No se pudo cargar el historial: '+errorText(e);
+    root.replaceChildren(make('p','muted',explain));notify(explain,true);
+  }
+}
 async function loadAdmin(){if(!user||user.uid!==appConfig?.adminUid){$('admin-section').classList.add('hidden');return;}$('admin-section').classList.remove('hidden');const el=$('admin-list');el.replaceChildren(make('p','muted','Cargando…'));try{const snap=await getDocs(query(collection(db,'sgEvidence'),orderBy('createdAt','desc'),limit(30)));el.replaceChildren();if(snap.empty)el.append(make('p','muted','Sin registros.'));for(const d of snap.docs){const r=d.data();el.append(make('p','meta',`${r.ownerName||'No declarado'} · ${r.zone} · ${displayRecord(r)} · ${formatDate(recordDate(r))}`));}}catch(e){el.replaceChildren(make('p','muted','No se pudo obtener la lista administrativa.'));}}
 function bind(){
   $('start-camera').addEventListener('click',startCamera);$('stop-camera').addEventListener('click',stopCamera);
-  $('retry-sensors').addEventListener('click',async()=>{if(!cameraStream)return notify('Abre la cámara antes de reintentar sensores.',true);startGps();await startMic();updateHud();notify('Reintentando GPS y micrófono; revisa los permisos del navegador si siguen pendientes.');});
+  $('retry-sensors').addEventListener('click',async()=>{if(!cameraStream)return notify('Abre la cámara antes de reintentar sensores.',true);startGps(true);await startMic();updateHud();notify('Reintentando ubicación y micrófono. Si el GPS falla, todavía puedes fotografiar con el micrófono.');});
   $('create-evidence').addEventListener('click',captureNow);
   $('preview-image').addEventListener('click',openReporter);
   $('preview-image').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openReporter();}});

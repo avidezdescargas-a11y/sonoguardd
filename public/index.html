@@ -8,7 +8,7 @@
 <div class="notice" id="notice">PROYECTO ACADÉMICO DE PRUEBA · Registro ciudadano informativo de ruido. No solicita visitas oficiales automáticamente. Sin calibración se muestra un índice digital relativo de 0 a 100, no un nivel ambiental certificado.</div>
 <section class="panel narrow hidden" id="signin"><h1>Abre SonoGuard con tu sesión</h1><p>Este módulo comparte la sesión de Firebase del panel principal. No necesitas iniciar sesión una segunda vez.</p><a class="button-link" href="./index.html">Ir a SonoGuard e iniciar sesión</a></section>
 <div class="hidden" id="workspace">
-<div class="heading"><div><span class="eyebrow">Integrado en tu cuenta actual</span><h1>Informar un problema de ruido</h1><p>Abre la cámara y SonoGuard activará el micrófono y solicitará el GPS. Cuando ambos estén listos, toma la foto: se guardará con los datos automáticos en tu historial privado de Firebase. El nombre se solicita únicamente si decides compartir el aviso por WhatsApp.</p></div><span class="tag" id="user-tag">Sesión activa</span></div>
+<div class="heading"><div><span class="eyebrow">Integrado en tu cuenta actual</span><h1>Informar un problema de ruido</h1><p>Abre la cámara y SonoGuard activará el micrófono y solicitará el GPS. Cuando la cámara esté lista, toma la foto: se descargará al dispositivo. En Firebase se guardarán solo los datos; si falla la ubicación se marcará como no disponible. El nombre se solicita únicamente si decides compartir el aviso por WhatsApp.</p></div><span class="tag" id="user-tag">Sesión activa</span></div>
 <div class="columns">
 <section aria-labelledby="camera-title" class="panel">
 <h2 id="camera-title">1. Cámara en vivo para registrar la zona</h2>
@@ -21,8 +21,8 @@
 </div>
 </div>
 <div class="actions"><button class="primary" id="start-camera" type="button">📷 Abrir cámara y sensores</button><button class="ghost" disabled="" id="stop-camera" type="button">Detener cámara</button></div>
-<p class="muted small">Al tomar la foto, se descargará automáticamente un JPG y se guardará una copia privada en Firebase con fecha, lugar y lectura. Podrás eliminarla desde el historial. La cámara, el micrófono y la ubicación necesitan autorización del navegador. No se aceptan valores escritos manualmente.</p>
-<div class="actions"><button class="primary" disabled="" id="create-evidence" type="button">📸 Tomar foto ahora</button></div><p aria-live="polite" class="muted small" id="auto-save-state" role="status">Al tomar la fotografía se descargará un JPG y se guardará automáticamente en tu cuenta Firebase. No se envía a WhatsApp.</p>
+<p class="muted small">Al tomar la foto, se descarga un JPG en tu dispositivo. Firebase solo guarda los datos de la medición, nunca imágenes. La cámara requiere permiso; el micrófono y la ubicación también lo requieren para obtener sus datos. Si no responden, se indicará claramente y podrás fotografiar igualmente. No se introducen datos manuales.</p>
+<div class="actions"><button class="primary" disabled="" id="create-evidence" type="button">📸 Tomar foto ahora</button></div><p aria-live="polite" class="muted small" id="auto-save-state" role="status">Se descargará la fotografía al dispositivo. Firebase guardará solo fecha, lectura y ubicación si está disponible. No se sube la imagen.</p>
 </section>
 <section aria-labelledby="sensors-title" class="panel">
 <h2 id="sensors-title">2. Datos automáticos del dispositivo</h2>
@@ -33,19 +33,19 @@
 </div>
 <div class="actions"><button class="secondary" id="retry-sensors" type="button">↻ Reintentar sensores</button></div>
 <p class="muted small">La ubicación viene del servicio de geolocalización del navegador y se abre en Google Maps. Si estás cerca de un lugar registrado en SonoGuard, se indica como referencia aproximada. No puedes introducir ni cambiar manualmente la lectura o las coordenadas.</p>
-<p class="muted small">Se requiere GPS reciente (menos de 45 s) y precisión informada de hasta 1 km. Esto reduce errores casuales, pero no impide una falsificación técnica; no es evidencia certificada.</p>
+<p class="muted small">La ubicación y el micrófono dependen de los permisos y servicios del dispositivo. Puedes fotografiar aunque alguno falle: se indicará «Ubicación no disponible» o «Sin lectura de micrófono» en vez de inventar datos. No es evidencia certificada.</p>
 </section>
 </div>
 <section class="panel hidden" id="preview-panel">
 <h2>3. Foto informativa de la zona</h2>
-<p class="muted">La foto informa de un problema de ruido en una zona, sin atribuir responsabilidad a nadie. Conserva el punto GPS del dispositivo, la fecha, la hora y la lectura digital capturada. Se inicia el guardado privado automático. Para compartirla se solicitará tu nombre completo y se creará una copia con el nombre. La foto se descarga: <strong>WhatsApp no permite adjuntarla automáticamente mediante un enlace a un número específico</strong>.</p>
+<p class="muted">La foto informa de un problema de ruido en una zona, sin atribuir responsabilidad a nadie. Conserva fecha, hora, lectura digital y, si el dispositivo la entrega, la ubicación. Solo esos datos se guardan en Firebase: la fotografía permanece en tu dispositivo. Para compartirla se solicitará tu nombre completo y se creará una copia con el nombre. La foto se descarga: <strong>WhatsApp no permite adjuntarla automáticamente mediante un enlace a un número específico</strong>.</p>
 <img alt="Foto de evidencia acústica con datos de la medición" class="photo-preview" id="preview-image" role="button" tabindex="0" title="Pulsa para preparar el envío al contacto de prueba"/>
 <div class="actions"><button class="secondary" id="download-image" type="button">Descargar foto JPG</button><button class="primary" id="open-trial" type="button">Informar problema por WhatsApp (prueba)</button><button class="ghost" id="print-report" type="button">Reporte PDF</button><button class="secondary" id="analyze" type="button">Analizar con IA</button></div>
 <div class="question-box"><label>Pregunta a la IA sobre esta medición (sin datos personales)<input id="ai-question" maxlength="180" placeholder="Ej. ¿Qué significa esta lectura?"/></label><button class="secondary" id="ask-ai" type="button">Preguntar a SonoGuard IA</button></div>
 <div aria-live="polite" class="ai-result hidden" id="analysis-result"></div>
 <div class="trial-info"><strong>Contacto para avisos de PRUEBA: 75830320</strong><div>Referencia municipal publicada en 2022: <strong>67123590</strong> (vigencia no confirmada). <a href="https://lapaz.bo/atencion-a-denuncias-2/" rel="noopener noreferrer" target="_blank">Información municipal</a>.</div><small>AVISO INFORMATIVO DE PRUEBA · MEDICIÓN NO CERTIFICADA · NO ENVÍA MENSAJES NI SOLICITA VISITAS AUTOMÁTICAMENTE.</small></div>
 </section>
-<section class="panel"><div class="section-heading"><div><h2>4. Mis registros informativos privados en Firebase</h2><p class="muted">Las fotografías se guardan al capturarlas con GPS y micrófono automáticos. Puedes eliminarlas cuando quieras desde aquí. Los hospitales y lugares anteriores de Firestore no se modifican.</p></div><button class="secondary" id="refresh-history" type="button">Actualizar</button></div><div class="history-grid" id="sgia-history"><p class="muted">Todavía no hay evidencias guardadas.</p></div></section>
+<section class="panel"><div class="section-heading"><div><h2>4. Mis registros informativos privados en Firebase</h2><p class="muted">Aquí se guarda únicamente el historial de datos: fecha, hora, lectura y ubicación disponible. No se suben fotos a Firebase. Puedes consultar y borrar tus registros. Los hospitales y lugares anteriores no se modifican.</p></div><button class="secondary" id="refresh-history" type="button">Actualizar</button></div><div class="history-grid" id="sgia-history"><p class="muted">Aún no hay registros de datos.</p></div></section>
 <section class="panel"><h2>5. Tendencias</h2><p class="muted">Valores de tus registros guardados (separados por escala, sin equivalencia legal).</p><div class="trend-grid" id="trends"><p class="muted">Guarda varias mediciones para ver tendencias.</p></div></section>
 <section class="panel hidden" id="admin-section"><h2>Registros administrativos · últimos datos</h2><p class="muted">Solo metadatos; las fotos de otras cuentas siguen siendo privadas.</p><div id="admin-list"></div></section>
 </div>
