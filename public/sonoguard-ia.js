@@ -1,290 +1,236 @@
-/** SonoGuard IA - módulo ADITIVO. No lee ni escribe places/ ni settings/global salvo consultar places/. */
-import * as projectConfig from './firebase-config.js';
-import { getApps, getApp, initializeApp } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, orderBy, limit, Timestamp, serverTimestamp } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
-import { getStorage, ref as storageRef, uploadBytes, getBlob, deleteObject } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-storage.js';
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js';
+/** SonoGuard IA: cámara EN VIVO, sesión compartida, colecciones aditivas. */
+import {firebaseConfig,appConfig} from './firebase-config.js';
+import {getApps,initializeApp} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
+import {getAuth,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
+import {getFirestore,collection,doc,setDoc,getDoc,getDocs,deleteDoc,query,where,orderBy,limit,Timestamp,serverTimestamp} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
+import {getStorage,ref as storageRef,uploadBytes,getBlob,deleteObject} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-storage.js';
+import {getFunctions,httpsCallable} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js';
 
-const cfg = projectConfig.firebaseConfig;
-if (!cfg?.apiKey || !cfg?.projectId) throw new Error('Configura public/firebase-config.js con los datos de tu proyecto Firebase.');
-const app = getApps().find(a => a.name === '[DEFAULT]') || initializeApp(cfg);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
-const functions = getFunctions(app, 'us-central1');
-const $ = id => document.getElementById(id);
-const OFFICIAL_REFERENCE = '67123590'; // Publicado en ficha GAMLP de 2022; vigencia NO confirmada.
-const TRIAL_NUMBER = '59175830320';     // Número de PRUEBA indicado por el autor.
-let user = null, profile = null, coords = null, places = [];
-let microphone = null, audioContext = null, analyzer = null, audioNode = null, frame = 0;
-let lastReading = null, lastReadingAt = 0, currentRecord = null, currentImageBlob = null;
-let currentObjectUrl = null, currentAnalysis = null;
+if(!firebaseConfig?.apiKey||!firebaseConfig?.projectId)throw Error('Firebase no configurado');
+const app=getApps().find(a=>a.name==='[DEFAULT]')||initializeApp(firebaseConfig);
+const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app),functions=getFunctions(app,'us-central1');
+const $=id=>document.getElementById(id);
+const TRIAL='59175830320',OFFICIAL_REFERENCE='67123590'; // solo referencia municipal de 2022, sin confirmar vigencia
+let user=null,profile=null,places=[],coords=null;
+let cameraStream=null,clockTimer=0,rawPhotoCanvas=null;
+let microphone=null,audioContext=null,audioNode=null,analyzer=null,micFrame=0,lastReading=null,lastReadingAt=0;
+let currentRecord=null,currentImageBlob=null,currentObjectUrl=null,currentAnalysis=null,reporterMode='share';
 let statusTimer;
+function notify(message,error=false){const el=$('status');el.textContent=message;el.classList.toggle('error',error);el.classList.add('visible');clearTimeout(statusTimer);statusTimer=setTimeout(()=>el.classList.remove('visible'),6800);}
+function errorText(e){const s=String(e?.code||'');if(s.includes('permission-denied'))return 'Permiso denegado. Verifica reglas y usuario de Firebase.';if(s.includes('storage/'))return 'Revisa la activación de Firebase Storage y sus permisos.';return String(e?.message||'Ocurrió un error.').slice(0,250);}
+function busy(btn,val,original){btn.disabled=val;btn.textContent=val?'Procesando…':original;}
+function formatDate(date){return new Intl.DateTimeFormat('es-BO',{timeZone:'America/La_Paz',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(date);}
+const number=v=>Number(v).toFixed(1);
+const recordDate=r=>r?.capturedAt?.toDate?r.capturedAt.toDate():new Date();
+function make(type,cls,txt){const a=document.createElement(type);if(cls)a.className=cls;if(txt!==undefined)a.textContent=txt;return a;}
+function trialLink(r){const text=`SONOGUARD IA · PROYECTO DE PRUEBA. No es una denuncia oficial.\nNombre completo: ${r.ownerName||''}\nLugar de medición: ${r.zone}.\nLectura orientativa: ${number(r.db)} ${r.unit}.\nHora (Bolivia): ${formatDate(recordDate(r))}.\nPosible fuente indicada por el usuario (sin verificar): ${r.reportedSource||'no indicada'}.\nLa foto se adjunta manualmente. No acredita una infracción.`;return `https://wa.me/${TRIAL}?text=${encodeURIComponent(text)}`;}
 
-function alertUser(message, isError=false) {
-  const n = $('status'); n.textContent = message; n.classList.add('visible');
-  n.classList.toggle('error',isError); clearTimeout(statusTimer);
-  statusTimer = setTimeout(() => n.classList.remove('visible'), 6500);
+async function loadProfile(){const snap=await getDoc(doc(db,'sgProfiles',user.uid));profile=snap.exists()?snap.data():null;}
+async function saveProfileForName(name){const data={fullName:name,organization:profile?.organization||'',type:profile?.type||'ciudadano',consent:true,updatedAt:serverTimestamp()};await setDoc(doc(db,'sgProfiles',user.uid),data);profile=data;}
+async function loadPlaces(){const select=$('known-place');select.replaceChildren(new Option('Sin seleccionar',''));try{const snap=await getDocs(query(collection(db,'places'),limit(250)));places=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>typeof p.name==='string').sort((a,b)=>a.name.localeCompare(b.name,'es'));for(const p of places)select.add(new Option(`${p.name} · ${p.type||'Lugar'}`,p.id));}catch(e){notify('No se pudieron consultar los lugares de SonoGuard: '+errorText(e),true);}}
+
+function updateHud(){
+  $('hud-time').textContent=formatDate(new Date()).split(',').at(-1)?.trim()||formatDate(new Date());
+  $('hud-place').textContent='Lugar: '+($('zone').value.trim()||(coords?`${coords.lat}, ${coords.lng} (GPS aprox.)`:'sin confirmar'));
+  if($('reading-type').value==='declared'){
+    const v=Number($('declared-db').value);$('hud-db').textContent=$('declared-db').value!==''&&Number.isFinite(v)?`${number(v)} dB SPL`:'— dB SPL';
+    $('hud-source').textContent='Lectura externa declarada · sin verificar';
+  }else{$('hud-db').textContent=lastReading===null?'— dBFS':`${number(lastReading)} dBFS`;$('hud-source').textContent='Micrófono digital · no certificado';}
 }
-function humanError(error) {
-  const code = String(error?.code || '');
-  if(code.includes('permission-denied')||code.includes('unauthorized')) return 'Permiso denegado. Revisa reglas, login y que el proyecto Firebase sea el correcto.';
-  if(code.includes('billing')||code.includes('storage/unknown')) return 'Comprueba que Firebase Storage y la facturación necesaria estén activados.';
-  if(code.includes('auth/invalid-credential')) return 'Correo o contraseña incorrectos.';
-  return String(error?.message || 'Ocurrió un error').slice(0,280);
+async function startCamera(){
+  if(cameraStream)return;
+  const btn=$('start-camera');busy(btn,true,'📷 Abrir cámara en vivo');
+  try{
+    if(!navigator.mediaDevices?.getUserMedia)throw Error('La cámara requiere HTTPS y un navegador compatible.');
+    cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+    const video=$('camera-video');video.srcObject=cameraStream;await video.play();
+    $('camera-empty').classList.add('hidden');$('stop-camera').disabled=false;$('create-evidence').disabled=false;
+    updateHud();clockTimer=setInterval(updateHud,1000);notify('Cámara en vivo activa. Confirma lugar y medición antes de tomar la foto.');
+  }catch(e){stopCamera();notify('No se pudo abrir la cámara: '+errorText(e),true);}finally{busy(btn,false,'📷 Abrir cámara en vivo');}
 }
-function setBusy(button, busy, label) { button.disabled=busy; button.textContent=busy ? 'Procesando…' : label; }
-function fmtDate(date) { return new Intl.DateTimeFormat('es-BO',{timeZone:'America/La_Paz',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(date); }
-function fmtNumber(value) { return Number(value).toFixed(1); }
-function protectedName(name) {
-  return name.trim().split(/\s+/).map((word,index)=>index<2 ? `${word[0] || ''}.` : word).join(' ');
+function stopCamera(){
+  if(clockTimer)clearInterval(clockTimer);clockTimer=0;
+  if(cameraStream)cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;
+  const video=$('camera-video');video.pause();video.srcObject=null;
+  $('camera-empty').classList.remove('hidden');$('stop-camera').disabled=true;$('create-evidence').disabled=true;
 }
-function recordLabel(record) {return `${fmtNumber(record.db)} ${record.unit} · ${record.zone}`;}
-function trialLink(record) {
-  const txt = `SONOGUARD IA - PROYECTO DE PRUEBA. No es una denuncia oficial.\nResponsable: ${record?.nameMode==='protected' ? protectedName(record.ownerName) : record?.ownerName || ''}\nMedición orientativa: ${record ? recordLabel(record) : 'sin datos'}.\nRegistro: ${record?.capturedAt?.toDate ? fmtDate(record.capturedAt.toDate()) : fmtDate(new Date())}.\nFoto: se adjunta manualmente.`;
-  return `https://wa.me/${TRIAL_NUMBER}?text=${encodeURIComponent(txt)}`;
+function stopMic(){
+  if(micFrame)cancelAnimationFrame(micFrame);micFrame=0;
+  if(microphone)microphone.getTracks().forEach(t=>t.stop());microphone=null;
+  try{audioNode?.disconnect();}catch{}audioNode=null;
+  if(audioContext)audioContext.close().catch(()=>{});audioContext=null;analyzer=null;
+  lastReading=null;lastReadingAt=0;$('live-db').textContent='—';$('mic-toggle').textContent='Iniciar micrófono';updateHud();
 }
-function create(type,cls,textContent) {const el=document.createElement(type); if(cls)el.className=cls; if(textContent !== undefined) el.textContent=textContent; return el;}
-function attr(el,props) { Object.entries(props).forEach(([key,value])=>el.setAttribute(key,value)); return el; }
-function readProfile() {
-  if(!user) return null;
-  const name=$('full-name').value.trim().replace(/\s+/g,' ');
-  if(name.length<5||name.length>100) throw new Error('Escribe tu nombre completo (mínimo cinco caracteres).');
-  if(!$('profile-consent').checked) throw new Error('Debes aceptar el consentimiento del perfil.');
-  return {fullName:name,organization:$('organization').value.trim(),type:$('profile-type').value,consent:true,updatedAt:serverTimestamp()};
-}
-async function saveProfile(ev) {
-  ev.preventDefault();
-  if(!user) return;
-  const btn=ev.submitter || $('profile-form').querySelector('button');setBusy(btn,true,'Guardar mi perfil');
-  try {const data=readProfile();await setDoc(doc(db,'sgProfiles',user.uid),data);profile={...data};alertUser('Perfil guardado correctamente.');}
-  catch(error){alertUser(humanError(error),true);}finally{setBusy(btn,false,'Guardar mi perfil');}
-}
-async function loadProfile() {
-  const snapshot=await getDoc(doc(db,'sgProfiles',user.uid));
-  profile=snapshot.exists()?snapshot.data():null;
-  $('full-name').value=profile?.fullName || user.displayName || '';
-  $('organization').value=profile?.organization||'';
-  $('profile-type').value=profile?.type||'ciudadano';
-  $('profile-consent').checked=profile?.consent===true;
-}
-async function loadPlaces() {
-  const select=$('known-place');select.replaceChildren(new Option('Sin seleccionar',''));
-  try {
-    const snap=await getDocs(query(collection(db,'places'),limit(250)));
-    places=snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>typeof d.name==='string').sort((a,b)=>a.name.localeCompare(b.name,'es'));
-    places.forEach(place=>select.add(new Option(`${place.name} · ${place.type||'Lugar'}`,place.id)));
-  } catch(error) {alertUser('No se pudieron consultar los lugares existentes: '+humanError(error),true);}
-}
-function stopMic(){if(frame) cancelAnimationFrame(frame);frame=0;if(microphone)microphone.getTracks().forEach(t=>t.stop());microphone=null;if(audioNode)audioNode.disconnect();audioNode=null;if(audioContext)audioContext.close().catch(()=>{});audioContext=null;analyzer=null;lastReading=null;lastReadingAt=0;$('live-db').textContent='—';$('mic-toggle').textContent='Iniciar micrófono';}
 async function toggleMic(){
   if(microphone){stopMic();return;}
-  try {
-    if(!navigator.mediaDevices?.getUserMedia) throw new Error('El navegador requiere HTTPS o localhost para usar micrófono.');
-    microphone=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+  try{
+    if(!navigator.mediaDevices?.getUserMedia)throw Error('Se necesita HTTPS o localhost para el micrófono.');
+    microphone=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
     audioContext=new (window.AudioContext||window.webkitAudioContext)();await audioContext.resume();
-    audioNode=audioContext.createMediaStreamSource(microphone);
-    analyzer=audioContext.createAnalyser();analyzer.fftSize=4096;audioNode.connect(analyzer);
-    const samples=new Float32Array(analyzer.fftSize);
-    $('mic-toggle').textContent='Detener micrófono';
-    function render(){
-      if(!analyzer)return;
-      analyzer.getFloatTimeDomainData(samples);let sum=0;for(let i=0;i<samples.length;i++)sum+=samples[i]*samples[i];
-      const rms=Math.sqrt(sum/samples.length);
-      const reading=Math.max(-120,Math.min(0,20*Math.log10(Math.max(rms,1e-6))));
-      lastReading=Math.round(reading*10)/10;lastReadingAt=Date.now();$('live-db').textContent=lastReading.toFixed(1);
-      frame=requestAnimationFrame(render);
-    }
-    render();
-  }catch(error){stopMic();alertUser('No se pudo usar el micrófono: '+humanError(error),true);}
+    audioNode=audioContext.createMediaStreamSource(microphone);analyzer=audioContext.createAnalyser();analyzer.fftSize=4096;audioNode.connect(analyzer);
+    const samples=new Float32Array(analyzer.fftSize);$('mic-toggle').textContent='Detener micrófono';
+    const tick=()=>{if(!analyzer)return;analyzer.getFloatTimeDomainData(samples);let energy=0;for(const x of samples)energy+=x*x;const rms=Math.sqrt(energy/samples.length);lastReading=Math.round(Math.max(-120,Math.min(0,20*Math.log10(Math.max(rms,1e-6))))*10)/10;lastReadingAt=Date.now();$('live-db').textContent=number(lastReading);$('hud-db').textContent=`${number(lastReading)} dBFS`;micFrame=requestAnimationFrame(tick);};tick();
+  }catch(e){stopMic();notify('Micrófono no disponible: '+errorText(e),true);}
 }
-async function requestLocation(){
-  if(!navigator.geolocation){alertUser('La geolocalización no está disponible.',true);return;}
-  $('get-location').disabled=true;
-  navigator.geolocation.getCurrentPosition(pos=>{
-    // ~11 m de resolución; no almacenar más precisión que la necesaria.
-    coords={lat:Math.round(pos.coords.latitude*1e4)/1e4,lng:Math.round(pos.coords.longitude*1e4)/1e4};
-    $('coords').textContent=`Coordenadas autorizadas: ${coords.lat}, ${coords.lng} (precisión redondeada)`;
-    $('get-location').disabled=false;
-  },error=>{
-    $('get-location').disabled=false;
-    alertUser('Ubicación no autorizada o no disponible. Puedes introducir la zona manualmente.',true);
-  },{enableHighAccuracy:false,timeout:10000,maximumAge:30000});
+function requestLocation(){
+  if(!navigator.geolocation)return notify('Geolocalización no disponible.',true);
+  const btn=$('get-location');btn.disabled=true;
+  navigator.geolocation.getCurrentPosition(p=>{coords={lat:Math.round(p.coords.latitude*1e4)/1e4,lng:Math.round(p.coords.longitude*1e4)/1e4};$('coords').textContent=`Punto de medición: ${coords.lat}, ${coords.lng} (coordenadas aproximadas)`;updateHud();btn.disabled=false;},()=>{btn.disabled=false;notify('No se pudo obtener la ubicación. Escribe la zona manualmente.',true);},{enableHighAccuracy:false,timeout:10000,maximumAge:30000});
 }
 function measure(){
   if($('reading-type').value==='mic'){
-    if(lastReading===null||Date.now()-lastReadingAt>2500) throw new Error('Inicia el micrófono y espera una lectura actual.');
-    return {db:lastReading,unit:'dBFS',source:'microfono'};
+    if(lastReading===null||Date.now()-lastReadingAt>2500)throw Error('Inicia el micrófono y espera una lectura actual antes de tomar la foto.');
+    return{db:lastReading,unit:'dBFS',source:'microfono'};
   }
-  const value=Number($('declared-db').value);
-  if(!$('declared-db').value.trim()||!Number.isFinite(value)||value<0||value>160)throw new Error('Escribe una lectura declarada entre 0 y 160 dB SPL.');
-  return {db:value,unit:'dB SPL',source:'declarada'};
+  const s=$('declared-db').value;if(s.trim()===''||!Number.isFinite(Number(s))||Number(s)<0||Number(s)>160)throw Error('Escribe una lectura externa declarada entre 0 y 160 dB SPL.');
+  return{db:Number(s),unit:'dB SPL',source:'declarada'};
 }
-function splitCanvasLine(ctx,text,maxWidth){
-  const words=String(text).split(/\s+/), lines=[];let line='';
-  for(const w of words){const candidate=line?line+' '+w:w;if(ctx.measureText(candidate).width>maxWidth && line){lines.push(line);line=w;}else{line=candidate;}}
-  if(line)lines.push(line);return lines.slice(0,3);
+function wrapLines(ctx,text,maxWidth,maxLines=3){
+  const parts=String(text||'').split(/\s+/),out=[];let line='';for(const part of parts){const next=line?`${line} ${part}`:part;if(ctx.measureText(next).width>maxWidth&&line){out.push(line);line=part;}else line=next;}if(line)out.push(line);return out.slice(0,maxLines);
 }
-function printLine(ctx,text,x,y,w,step=32){for(const ln of splitCanvasLine(ctx,text,w)){ctx.fillText(ln,x,y);y+=step;}return y;}
-async function evidenceJpeg(file,record){
-  if(file.size>10*1024*1024) throw new Error('La foto original supera los 10 MB.');
-  if(!file.type.startsWith('image/')) throw new Error('El archivo debe ser una imagen.');
-  const image=await createImageBitmap(file);
-  try {
-    const width=Math.max(900,Math.min(1500,image.width));const height=Math.max(1,Math.round(image.height*width/image.width));
-    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height+460;
-    const ctx=canvas.getContext('2d');if(!ctx)throw new Error('No se pudo preparar la imagen.');
-    ctx.fillStyle='#0a2030';ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(image,0,0,width,height);
-    ctx.fillStyle='rgba(4,19,31,.86)';ctx.fillRect(0,height,width,460);
-    const x=Math.max(24,width*.04), available=width-x*2;
-    ctx.fillStyle='#6af0d4';ctx.font=`bold ${Math.max(22,Math.round(width*.026))}px system-ui`;ctx.fillText('SONOGUARD IA · EVIDENCIA ACÚSTICA',x,height+49);
-    ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(33,Math.round(width*.048))}px system-ui`;ctx.fillText(`${fmtNumber(record.db)} ${record.unit} · ${record.source==='microfono'?'MICRÓFONO DIGITAL':'LECTURA DECLARADA'}`,x,height+122);
-    ctx.font=`${Math.max(17,Math.round(width*.022))}px system-ui`;
-    let y=height+160;
-    const name=record.nameMode==='protected'?protectedName(record.ownerName):record.ownerName;
-    y=printLine(ctx,`Denunciante (prueba): ${name}`,x,y,available,31);
-    y=printLine(ctx,`Hora del dispositivo: ${fmtDate(record.capturedAt.toDate())}`,x,y+5,available,31);
-    y=printLine(ctx,`Lugar: ${record.zone}`,x,y+5,available,31);
-    if(record.lat!==null&&record.lng!==null) y=printLine(ctx,`Coordenadas aproximadas: ${record.lat}, ${record.lng}`,x,y+4,available,27);
-    ctx.font=`${Math.max(14,Math.round(width*.016))}px system-ui`;
-    y=printLine(ctx,`Contacto de PRUEBA: 75830320 · GAMLP publicado en 2022: ${OFFICIAL_REFERENCE} (sin confirmar)`,x,y+7,available,26);
-    ctx.fillStyle='#f4be85';ctx.font=`bold ${Math.max(13,Math.round(width*.015))}px system-ui`;
-    printLine(ctx,'PROYECTO ACADÉMICO DE PRUEBA · MEDICIÓN NO CERTIFICADA · NO ES DENUNCIA OFICIAL',x,canvas.height-42,available,23);
-    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('No se generó la imagen.')),'image/jpeg',.84));
-    if(blob.size>6*1024*1024)throw new Error('La imagen resultante supera el límite de 6 MB.');
-    return blob;
-  } finally{image.close?.();}
+function composePhoto(r){
+  if(!rawPhotoCanvas)throw Error('No existe la foto original de esta sesión.');
+  const width=Math.min(1500,Math.max(900,rawPhotoCanvas.width));const imageHeight=Math.round(rawPhotoCanvas.height*width/rawPhotoCanvas.width);
+  const footerHeight=430;const canvas=document.createElement('canvas');canvas.width=width;canvas.height=imageHeight+footerHeight;
+  const c=canvas.getContext('2d');if(!c)throw Error('No se pudo crear la imagen.');c.fillStyle='#0b2433';c.fillRect(0,0,canvas.width,canvas.height);c.drawImage(rawPhotoCanvas,0,0,width,imageHeight);
+  c.fillStyle='rgba(7,26,40,.94)';c.fillRect(0,imageHeight,width,footerHeight);
+  const left=35,available=width-70;
+  c.fillStyle='#72f2d7';c.font='bold 32px system-ui';c.fillText('SONOGUARD IA · FOTO DE EVIDENCIA',left,imageHeight+50);
+  c.fillStyle='#fff';c.font='bold 56px system-ui';c.fillText(`${number(r.db)} ${r.unit}`,left,imageHeight+118);
+  c.font='26px system-ui';let y=imageHeight+165;
+  for(const line of [`Fecha y hora (Bolivia): ${formatDate(recordDate(r))}`,`Lugar de medición: ${r.zone}`,`Nombre completo: ${r.ownerName||'No proporcionado'}`]){
+    for(const segment of wrapLines(c,line,available,2)){c.fillText(segment,left,y);y+=32;}y+=2;
+  }
+  if(r.lat!==null&&r.lng!==null){c.font='22px system-ui';c.fillText(`Coordenadas aproximadas: ${r.lat}, ${r.lng}`,left,Math.min(y+4,imageHeight+330));}
+  c.font='19px system-ui';c.fillStyle='#d9e4eb';c.fillText(`Contacto de PRUEBA: 75830320 · Referencia municipal 2022: ${OFFICIAL_REFERENCE} (sin confirmar)`,left,imageHeight+370);
+  c.fillStyle='#ffd39d';c.font='bold 18px system-ui';c.fillText('PROYECTO DE PRUEBA · MEDICIÓN NO CERTIFICADA · NO ES DENUNCIA OFICIAL',left,imageHeight+406);
+  return canvas;
 }
-function clearPreviewUrl(){if(currentObjectUrl)URL.revokeObjectURL(currentObjectUrl);currentObjectUrl=null;}
-function showPreview(record,blob){
-  currentRecord=record;currentImageBlob=blob;clearPreviewUrl();currentObjectUrl=URL.createObjectURL(blob);
-  $('preview-image').src=currentObjectUrl;$('preview-link').href=trialLink(record);
-  $('preview-panel').classList.remove('hidden');$('analysis-result').classList.add('hidden');currentAnalysis=null;$('ai-question').value='';
+function canvasJpeg(canvas){return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('No se pudo codificar la imagen.')),'image/jpeg',.83));}
+function clearPhotoUrl(){if(currentObjectUrl)URL.revokeObjectURL(currentObjectUrl);currentObjectUrl=null;}
+function showPreview(record,blob,{fromHistory=false}={}){
+  currentRecord=record;currentImageBlob=blob;currentAnalysis=null;clearPhotoUrl();currentObjectUrl=URL.createObjectURL(blob);
+  $('preview-image').src=currentObjectUrl;$('preview-panel').classList.remove('hidden');$('analysis-result').classList.add('hidden');$('ai-question').value='';
+  $('save-cloud').disabled=!!record.id; // No sobrescribe evidencias inmutables.
+  if(fromHistory)rawPhotoCanvas=null;
   $('preview-panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
-async function saveEvidence(){
-  const btn=$('create-evidence');if(!user)return;
-  if(!profile?.fullName||!profile?.consent) {alertUser('Primero guarda tu perfil para vincular tu nombre a la evidencia.',true);return;}
-  if(!$('share-consent').checked){alertUser('Confirma el consentimiento para generar la fotografía.',true);return;}
-  const file=$('photo').files?.[0];if(!file){alertUser('Selecciona o toma una fotografía.',true);return;}
-  const zone=$('zone').value.trim();if(zone.length<3){alertUser('Escribe una zona o dirección aproximada.',true);return;}
-  setBusy(btn,true,'Crear imagen y guardar en historial');
-  try {
-    const reading=measure();const id=doc(collection(db,'sgEvidence')).id;const photoPath=`sgEvidence/${user.uid}/${id}.jpg`;
-    const record={ownerUid:user.uid,ownerName:profile.fullName,nameMode:$('photo-name-mode').value,db:reading.db,unit:reading.unit,source:reading.source,zone,
-      placeName:places.find(p=>p.id===$('known-place').value)?.name || '',reportedSource:$('possible-source').value.trim(),
-      lat:coords?.lat??null,lng:coords?.lng??null,capturedAt:Timestamp.now(),createdAt:serverTimestamp(),photoPath};
-    const blob=await evidenceJpeg(file,record);const imgRef=storageRef(storage,photoPath);
-    await uploadBytes(imgRef,blob,{contentType:'image/jpeg'});
-    try {await setDoc(doc(db,'sgEvidence',id),record);}catch(error){await deleteObject(imgRef).catch(()=>{});throw error;}
-    showPreview({...record,id,createdAt:record.capturedAt},blob);
-    $('share-consent').checked=false;
-    alertUser('Evidencia guardada en Firestore y fotografía privada en Storage.');
-    await loadHistory();
-  }catch(error){alertUser('No se pudo guardar: '+humanError(error),true);}finally{setBusy(btn,false,'Crear imagen y guardar en historial');}
+async function captureNow(){
+  if(!user)return;
+  try{
+    const video=$('camera-video');if(!cameraStream||video.readyState<2||!video.videoWidth)throw Error('Primero abre la cámara y espera la imagen en vivo.');
+    const zone=$('zone').value.trim()||(coords?`${coords.lat}, ${coords.lng} (GPS aproximado)`:'');if(zone.length<3)throw Error('Escribe el lugar de medición, elige un lugar registrado o utiliza la ubicación GPS.');
+    const reading=measure();const now=Timestamp.now();
+    const width=Math.min(1600,video.videoWidth),height=Math.round(video.videoHeight*width/video.videoWidth);
+    rawPhotoCanvas=document.createElement('canvas');rawPhotoCanvas.width=width;rawPhotoCanvas.height=height;
+    rawPhotoCanvas.getContext('2d').drawImage(video,0,0,width,height);
+    const record={ownerUid:user.uid,ownerName:'',nameMode:'full',db:reading.db,unit:reading.unit,source:reading.source,zone,placeName:places.find(p=>p.id===$('known-place').value)?.name||'',reportedSource:$('possible-source').value.trim(),lat:coords?.lat??null,lng:coords?.lng??null,capturedAt:now};
+    const blob=await canvasJpeg(composePhoto(record));showPreview(record,blob);notify('¡Foto capturada en ese instante! Puedes descargarla o preparar WhatsApp.');
+  }catch(e){notify(errorText(e),true);}
 }
-async function saveJpg(){if(!currentImageBlob)return;const url=URL.createObjectURL(currentImageBlob);const a=create('a');a.href=url;a.download=`SonoGuard-evidencia-${Date.now()}.jpg`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
-function openTrial(){if(!currentRecord){alertUser('Primero crea o selecciona una evidencia.',true);return;}window.open(trialLink(currentRecord),'_blank','noopener,noreferrer');}
-async function aiAnalysis(question=""){
-  if(!currentRecord?.id)return;
-  const btn=$('analyze');setBusy(btn,true,'Analizar con IA');
-  try {
-    const response=await httpsCallable(functions,'analyzeSonoGuardEvidence')({recordId:currentRecord.id,question});
-    currentAnalysis=response.data?.analysis||'Sin respuesta';$('analysis-result').textContent=currentAnalysis;$('analysis-result').classList.remove('hidden');
-  }catch(error){alertUser('Análisis IA no disponible: '+humanError(error),true);}finally{setBusy(btn,false,'Analizar con IA');}
+function downloadJpg(blob=currentImageBlob){if(!blob)return;const url=URL.createObjectURL(blob),a=make('a');a.href=url;a.download=`SonoGuard-evidencia-${Date.now()}.jpg`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+function downloadDataUrl(dataUrl){const a=make('a');a.href=dataUrl;a.download=`SonoGuard-evidencia-con-nombre-${Date.now()}.jpg`;document.body.append(a);a.click();a.remove();}
+function openReporter(mode){if(!currentRecord)return notify('Primero toma una foto o selecciona una evidencia.',true);reporterMode=mode;
+  $('reporter-title').textContent=mode==='share'?'Preparar WhatsApp de prueba':'Guardar evidencia privada';
+  $('reporter-help').textContent=mode==='share'?'Escribe tu nombre completo: se incluirá en la foto y en el mensaje preparado.':'Escribe tu nombre completo: se incluirá en la evidencia privada que guardes.';
+  $('reporter-name').value=currentRecord.ownerName||profile?.fullName||'';
+  $('reporter-consent').checked=false;$('save-consent').checked=mode==='save';$('save-consent-row').classList.toggle('hidden',mode==='save');
+  $('confirm-reporter').textContent=mode==='share'?'Descargar foto y abrir WhatsApp de prueba':'Guardar en Firebase';
+  $('reporter-dialog').showModal();
+}
+async function persistEvidence(r,blob){
+  if(r.id)return; // registro histórico ya guardado: no modificar.
+  await saveProfileForName(r.ownerName); // Reglas de Firestore exigen coincidencia con perfil.
+  const id=doc(collection(db,'sgEvidence')).id,path=`sgEvidence/${user.uid}/${id}.jpg`;
+  const record={...r,ownerUid:user.uid,createdAt:serverTimestamp(),photoPath:path};
+  const image=storageRef(storage,path);await uploadBytes(image,blob,{contentType:'image/jpeg'});
+  try{await setDoc(doc(db,'sgEvidence',id),record);}catch(e){await deleteObject(image).catch(()=>{});throw e;}
+  currentRecord={...r,id,photoPath:path};$('save-cloud').disabled=true;await loadHistory();notify('Evidencia guardada en tu historial privado de Firebase.');
+}
+async function submitReporter(e){
+  e.preventDefault();if(!currentRecord||!user)return;
+  const name=$('reporter-name').value.trim().replace(/\s+/g,' ');
+  if(name.length<5||name.length>100||name.split(' ').length<2)return notify('Escribe al menos nombre y apellido completos.',true);
+  if(!$('reporter-consent').checked)return notify('Debes autorizar el uso de tu nombre completo en la foto.',true);
+  if(currentRecord.id && currentRecord.ownerName!==name)return notify('Esta evidencia guardada es inmutable. Introduce el mismo nombre con el que se guardó.',true);
+  const saveRequested=reporterMode==='save'||$('save-consent').checked;
+  const record={...currentRecord,ownerName:name,nameMode:'full'};
+  const mode=reporterMode;
+  // Síncrono antes de abrir WhatsApp, para respetar el gesto del usuario y evitar bloqueo de ventanas.
+  let photoUrl=null;
+  if(rawPhotoCanvas){try{photoUrl=composePhoto(record).toDataURL('image/jpeg',.83);}catch(err){notify(errorText(err),true);return;}}
+  $('reporter-dialog').close();
+  if(mode==='share'){
+    if(photoUrl)downloadDataUrl(photoUrl);else downloadJpg();
+    const link=make('a');link.href=trialLink(record);link.target='_blank';link.rel='noopener noreferrer';document.body.append(link);link.click();link.remove();
+  }
+  const btn=$('confirm-reporter');busy(btn,true,'Continuar');
+  try{
+    const blob=photoUrl?await(await fetch(photoUrl)).blob():currentImageBlob;
+    if(rawPhotoCanvas){
+      // Mantener foto con nombre en el panel, aunque no se suba a Firebase.
+      showPreview(record,blob); // por defecto NO persiste si no se autoriza.
+    }
+    if(saveRequested){
+      if(!currentRecord?.id)await persistEvidence(record,blob);
+      else notify('Esta evidencia ya estaba guardada.');
+    }else if(mode==='share')notify('WhatsApp de prueba preparado. Adjunta la foto JPG descargada si lo deseas.');
+  }catch(err){notify('La imagen está lista; no se pudo guardar en Firebase: '+errorText(err),true);}
+  finally{busy(btn,false,mode==='share'?'Descargar foto y abrir WhatsApp de prueba':'Guardar en Firebase');}
+}
+async function aiAnalysis(question=''){
+  if(!currentRecord?.id)return notify('Para usar IA, primero guarda esta foto en tu historial privado de Firebase.',true);
+  const btn=$('analyze');busy(btn,true,'Analizar con IA');
+  try{const result=await httpsCallable(functions,'analyzeSonoGuardEvidence')({recordId:currentRecord.id,question});currentAnalysis=result.data?.analysis||'Sin respuesta';$('analysis-result').textContent=currentAnalysis;$('analysis-result').classList.remove('hidden');}
+  catch(e){notify('IA no disponible: '+errorText(e),true);}finally{busy(btn,false,'Analizar con IA');}
 }
 async function printReport(){
   if(!currentRecord||!currentImageBlob)return;
-  const popup=window.open('','_blank');if(!popup){alertUser('Autoriza ventanas emergentes para generar el PDF.',true);return;}
-  const r=currentRecord;
-  const visibleReporter=r.nameMode==='protected'?protectedName(r.ownerName):r.ownerName;
-  const reader=new FileReader();reader.onload=()=>{
-    const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-    popup.document.open();popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte SonoGuard IA</title><style>body{font:16px system-ui;max-width:850px;margin:24px auto;padding:18px;color:#152b39}img{width:100%;max-height:750px;object-fit:contain}small{color:#596d77}.warn{border:1px solid #a7a7a7;padding:12px}button{padding:12px;cursor:pointer}@media print{button{display:none}}</style></head><body><h1>SONOGUARD IA · Reporte académico</h1><img src="${reader.result}" alt="Evidencia acústica"><p><b>Responsable:</b> ${escapeHTML(visibleReporter)}<br><b>Medición:</b> ${fmtNumber(r.db)} ${escapeHTML(r.unit)}<br><b>Zona:</b> ${escapeHTML(r.zone)}<br><b>Registro:</b> ${escapeHTML(fmtDate(r.capturedAt.toDate()))}</p>${currentAnalysis?`<h2>Interpretación orientativa de IA</h2><p>${escapeHTML(currentAnalysis)}</p>`:""}<div class="warn"><b>NO ES DENUNCIA OFICIAL</b><p>Proyecto de prueba; resultados orientativos no certificados. Contacto de prueba 75830320. Referencia municipal publicada en 2022: ${OFFICIAL_REFERENCE} (verificar vigencia).</p></div><button onclick="window.print()">Imprimir / Guardar como PDF</button></body></html>`);popup.document.close();
-  };reader.readAsDataURL(currentImageBlob);
+  const popup=window.open('','_blank');if(!popup)return notify('Habilita ventanas emergentes para imprimir.',true);
+  const r=currentRecord;const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  const reader=new FileReader();reader.onload=()=>{popup.document.open();popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte SonoGuard</title><style>body{font:16px system-ui;color:#142632;max-width:880px;margin:auto;padding:25px}img{width:100%;object-fit:contain}.warn{border:1px solid #777;padding:15px}button{padding:12px}@media print{button{display:none}}</style></head><body><h1>SonoGuard IA · Evidencia de prueba</h1><img alt="Fotografía de medición" src="${reader.result}"><p><b>Nombre:</b> ${escape(r.ownerName||'No declarado')}<br><b>Lectura:</b> ${number(r.db)} ${escape(r.unit)}<br><b>Lugar:</b> ${escape(r.zone)}<br><b>Fecha y hora:</b> ${escape(formatDate(recordDate(r)))}</p>${currentAnalysis?`<p>${escape(currentAnalysis)}</p>`:''}<p class="warn">Proyecto académico de prueba. Medición no certificada, no equivale a denuncia oficial. Contacto de prueba 75830320; referencia municipal publicada en 2022 ${OFFICIAL_REFERENCE} (vigencia sin confirmar).</p><button onclick="window.print()">Imprimir / Guardar PDF</button></body></html>`);popup.document.close();};reader.readAsDataURL(currentImageBlob);
 }
-function renderRecordCard(data,id){
-  const card=create('article','history-card');const title=create('h3','',`${fmtNumber(data.db)} ${data.unit}`);card.append(title);
-  card.append(create('p','meta',`${fmtDate(data.capturedAt.toDate())} · ${data.zone}`));
-  card.append(create('p','meta',`Responsable: ${data.ownerName} · ${data.source==='microfono'?'Micrófono digital':'Lectura declarada'}`));
-  const image=create('img');image.alt='Foto acústica privada; tocar abre contacto de prueba';image.loading='lazy';image.addEventListener('click',()=>window.open(trialLink(data),'_blank','noopener,noreferrer'));
-  card.insertBefore(image,title);getBlob(storageRef(storage,data.photoPath)).then(blob=>{const url=URL.createObjectURL(blob);image.src=url;image.addEventListener('load',()=>setTimeout(()=>URL.revokeObjectURL(url),30000),{once:true});}).catch(()=>{image.alt='Foto no disponible';image.removeAttribute('src');});
-  const bar=create('div','buttons');
-  const see=create('button','secondary','Ver evidencia');see.addEventListener('click',async()=>{see.disabled=true;try{showPreview({...data,id},await getBlob(storageRef(storage,data.photoPath)));}catch(e){alertUser(humanError(e),true);}finally{see.disabled=false;}});
-  const del=create('button','ghost','Eliminar');del.addEventListener('click',async()=>{
-    if(!window.confirm('¿Eliminar permanentemente esta evidencia y su imagen? Los hospitales y lugares NO se modificarán.'))return;
-    del.disabled=true;try{await deleteObject(storageRef(storage,data.photoPath));await deleteDoc(doc(db,'sgEvidence',id));if(currentRecord?.id===id){$('preview-panel').classList.add('hidden');currentRecord=null;currentImageBlob=null;clearPreviewUrl();}await loadHistory();alertUser('Evidencia eliminada.');}catch(error){alertUser('No se pudo completar la eliminación: '+humanError(error),true);}
-    finally{del.disabled=false;}
-  });bar.append(see,del);card.append(bar);return card;
+function historyCard(data,id){
+  const card=make('article','history-card');card.append(make('h3','',`${number(data.db)} ${data.unit}`));
+  card.append(make('p','meta',`${formatDate(recordDate(data))} · ${data.zone}`));card.append(make('p','meta',`Responsable: ${data.ownerName}`));
+  const image=make('img');image.alt='Foto privada de evidencia';image.loading='lazy';card.insertBefore(image,card.firstChild);
+  getBlob(storageRef(storage,data.photoPath)).then(blob=>{const url=URL.createObjectURL(blob);image.src=url;image.addEventListener('load',()=>setTimeout(()=>URL.revokeObjectURL(url),20000),{once:true});}).catch(()=>{image.alt='Foto no disponible';});
+  const row=make('div','buttons'),see=make('button','secondary','Ver evidencia'),del=make('button','ghost','Eliminar');
+  const view=async()=>{see.disabled=true;try{showPreview({...data,id},await getBlob(storageRef(storage,data.photoPath)),{fromHistory:true});}catch(e){notify(errorText(e),true);}finally{see.disabled=false;}};
+  see.addEventListener('click',view);image.addEventListener('click',view);
+  del.addEventListener('click',async()=>{if(!confirm('¿Eliminar esta evidencia y su foto? No afecta hospitales ni lugares.'))return;del.disabled=true;try{await deleteObject(storageRef(storage,data.photoPath));await deleteDoc(doc(db,'sgEvidence',id));if(currentRecord?.id===id){$('preview-panel').classList.add('hidden');currentRecord=null;currentImageBlob=null;rawPhotoCanvas=null;clearPhotoUrl();}await loadHistory();notify('Evidencia eliminada.');}catch(e){notify('No se pudo eliminar: '+errorText(e),true);}finally{del.disabled=false;}});
+  row.append(see,del);card.append(row);return card;
 }
-function renderTrends(records){
-  const dest=$('trends');dest.replaceChildren();
-  for(const unit of ['dBFS','dB SPL']){
-    const set=records.filter(r=>r.unit===unit&&Number.isFinite(r.db));
-    const p=create('div','trend-panel');p.append(create('h3','',unit));
-    if(!set.length){p.append(create('p','muted small','Sin mediciones de esta escala.'));dest.append(p);continue;}
-    const nums=set.map(r=>r.db), sorted=[...nums].sort((a,b)=>a-b), median=sorted[Math.floor(sorted.length/2)];
-    const average=nums.reduce((a,b)=>a+b,0)/nums.length;
-    p.append(create('p','trend-stats',`${set.length} mediciones · Media ${average.toFixed(1)} ${unit} · Mediana ${median.toFixed(1)}`));
-    const recent=[...set].slice(0,10).reverse();
-    for(const r of recent){
-      const bar=create('div','trend-row'), fill=create('div','bar');
-      // La barra representa posición relativa DENTRO de la escala seleccionada, no límites legales.
-      fill.style.width=`${Math.max(2,((r.db+(unit==='dBFS'?120:0))/(unit==='dBFS'?120:160))*100)}%`;
-      bar.append(create('span','meta',fmtDate(r.capturedAt.toDate()).slice(0,10)),fill,create('span','meta',fmtNumber(r.db)));p.append(bar);
-    }
-    const deviations=set.filter(r=>r.db-median>=12).length;
-    if(set.length>=5 && deviations)p.append(create('p','trend-warning',`${deviations} registro(s) superan en 12 dB la mediana de esta muestra: revisar condiciones del dispositivo, horarios y posibles causas. No indica incumplimiento.`));
-    else p.append(create('p','trend-warning','Las tendencias son descriptivas. No comparan de forma confiable distintos dispositivos ni demuestran infracciones.'));
-    dest.append(p);
-  }
-}
-async function loadHistory(){
-  if(!user)return;
-  const root=$('history');root.replaceChildren(create('p','muted','Cargando historial…'));
-  try {
-    const q=query(collection(db,'sgEvidence'),where('ownerUid','==',user.uid),orderBy('createdAt','desc'),limit(50));
-    const snap=await getDocs(q);root.replaceChildren();renderTrends(snap.docs.map(d=>d.data()));
-    if(snap.empty){root.append(create('p','muted','Todavía no hay registros.'));return;}
-    snap.docs.forEach(docu=>root.append(renderRecordCard(docu.data(),docu.id)));
-  }catch(error){root.replaceChildren(create('p','muted','No se pudo cargar el historial. Verifica que se desplegó el índice compuesto.'));alertUser(humanError(error),true);}
-}
-async function loadAdmin(){
-  const adminUid=projectConfig.appConfig?.adminUid;
-  if(!adminUid||user?.uid!==adminUid)return;
-  $('admin-section').classList.remove('hidden');
-  const dest=$('admin-list');dest.replaceChildren(create('p','muted','Cargando…'));
-  try{const snap=await getDocs(query(collection(db,'sgEvidence'),orderBy('createdAt','desc'),limit(30)));dest.replaceChildren();
-    if(snap.empty)dest.append(create('p','muted','Aún no hay evidencias.'));
-    snap.docs.forEach(docu=>{const d=docu.data();dest.append(create('p','meta',`${d.ownerName} · ${d.zone} · ${fmtNumber(d.db)} ${d.unit} · ${fmtDate(d.capturedAt.toDate())}`));});
-  }catch(e){dest.replaceChildren(create('p','muted','Sin acceso administrativo a historial.'));}
-}
+function renderTrends(records){const dest=$('trends');dest.replaceChildren();for(const unit of ['dBFS','dB SPL']){const set=records.filter(r=>r.unit===unit&&Number.isFinite(r.db));const panel=make('div','trend-panel');panel.append(make('h3','',unit));if(!set.length){panel.append(make('p','muted small','Sin registros de esta escala.'));dest.append(panel);continue;}const nums=set.map(r=>r.db),median=[...nums].sort((a,b)=>a-b)[Math.floor(nums.length/2)],avg=nums.reduce((a,b)=>a+b,0)/nums.length;panel.append(make('p','trend-stats',`${nums.length} mediciones · Promedio ${avg.toFixed(1)} · Mediana ${median.toFixed(1)} ${unit}`));for(const r of set.slice(0,10).reverse()){const row=make('div','trend-row'),bar=make('div','bar');bar.style.width=`${Math.max(2,((r.db+(unit==='dBFS'?120:0))/(unit==='dBFS'?120:160))*100)}%`;row.append(make('span','meta',formatDate(recordDate(r)).slice(0,10)),bar,make('span','meta',number(r.db)));panel.append(row);}panel.append(make('p','trend-warning','Resumen descriptivo: no determina infracciones ni permite comparar equipos no calibrados.'));dest.append(panel);}}
+async function loadHistory(){if(!user)return;const root=$('history');root.replaceChildren(make('p','muted','Cargando…'));try{const q=query(collection(db,'sgEvidence'),where('ownerUid','==',user.uid),orderBy('createdAt','desc'),limit(50)),snap=await getDocs(q);root.replaceChildren();renderTrends(snap.docs.map(d=>d.data()));if(snap.empty){root.append(make('p','muted','Aún no tienes evidencias guardadas.'));return;}for(const d of snap.docs)root.append(historyCard(d.data(),d.id));}catch(e){root.replaceChildren(make('p','muted','No se pudo cargar el historial. Revisa el índice compuesto y las reglas.'));notify(errorText(e),true);}}
+async function loadAdmin(){if(!user||user.uid!==appConfig?.adminUid){$('admin-section').classList.add('hidden');return;}$('admin-section').classList.remove('hidden');const el=$('admin-list');el.replaceChildren(make('p','muted','Cargando…'));try{const snap=await getDocs(query(collection(db,'sgEvidence'),orderBy('createdAt','desc'),limit(30)));el.replaceChildren();if(snap.empty)el.append(make('p','muted','Sin registros.'));for(const d of snap.docs){const r=d.data();el.append(make('p','meta',`${r.ownerName} · ${r.zone} · ${number(r.db)} ${r.unit} · ${formatDate(recordDate(r))}`));}}catch(e){el.replaceChildren(make('p','muted','No se pudo obtener la lista administrativa.'));}}
 function bind(){
-  $('login-form').addEventListener('submit',async e=>{e.preventDefault();const button=e.submitter;setBusy(button,true,'Ingresar');try{await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value);}catch(error){alertUser(humanError(error),true);}finally{setBusy(button,false,'Ingresar');}});
-  $('profile-form').addEventListener('submit',saveProfile);
-  $('logout').addEventListener('click',()=>signOut(auth));
-  $('mic-toggle').addEventListener('click',toggleMic);
-  $('reading-type').addEventListener('change',()=>{const isMic=$('reading-type').value==='mic';$('mic-area').classList.toggle('hidden',!isMic);$('declared-area').classList.toggle('hidden',isMic);if(!isMic)stopMic();});
-  $('get-location').addEventListener('click',requestLocation);
-  $('clear-location').addEventListener('click',()=>{coords=null;$('coords').textContent='Coordenadas no guardadas.';});
-  $('known-place').addEventListener('change',()=>{const place=places.find(p=>p.id===$('known-place').value);if(place&&!$('zone').value.trim())$('zone').value=`${place.name}, La Paz`;});
-  $('create-evidence').addEventListener('click',saveEvidence);
-  $('download-image').addEventListener('click',saveJpg);
-  $('open-trial').addEventListener('click',openTrial);
+  $('start-camera').addEventListener('click',startCamera);$('stop-camera').addEventListener('click',stopCamera);
+  $('mic-toggle').addEventListener('click',toggleMic);$('create-evidence').addEventListener('click',captureNow);
+  $('reading-type').addEventListener('change',()=>{const mic=$('reading-type').value==='mic';$('mic-area').classList.toggle('hidden',!mic);$('declared-area').classList.toggle('hidden',mic);if(!mic)stopMic();updateHud();});
+  $('declared-db').addEventListener('input',updateHud);$('zone').addEventListener('input',updateHud);
+  $('known-place').addEventListener('change',()=>{const p=places.find(x=>x.id===$('known-place').value);if(p)$('zone').value=`${p.name}, La Paz`;updateHud();});
+  $('get-location').addEventListener('click',requestLocation);$('clear-location').addEventListener('click',()=>{coords=null;$('coords').textContent='Coordenadas borradas. Se guardará solo la zona escrita.';updateHud();});
+  $('preview-image').addEventListener('click',()=>openReporter('share'));
+  $('preview-image').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openReporter('share');}});
+  $('download-image').addEventListener('click',()=>downloadJpg());
+  $('open-trial').addEventListener('click',()=>openReporter('share'));
+  $('save-cloud').addEventListener('click',()=>openReporter('save'));
+  $('reporter-form').addEventListener('submit',submitReporter);
+  $('cancel-reporter').addEventListener('click',()=>$('reporter-dialog').close());
   $('print-report').addEventListener('click',printReport);
-  $('analyze').addEventListener('click',()=>aiAnalysis());
-  $('ask-ai').addEventListener('click',()=>{const question=$('ai-question').value.trim();if(question.length<3){alertUser('Escribe una pregunta breve sobre la medición.',true);return;}aiAnalysis(question);});
+  $('analyze').addEventListener('click',()=>aiAnalysis());$('ask-ai').addEventListener('click',()=>{const q=$('ai-question').value.trim();if(q.length<3)return notify('Escribe una pregunta breve.',true);aiAnalysis(q);});
   $('refresh-history').addEventListener('click',loadHistory);
-  window.addEventListener('pagehide',()=>{stopMic();clearPreviewUrl();});
+  window.addEventListener('message',e=>{if(e.origin===location.origin && e.data?.source==='sonoguard-shell'&&e.data?.action==='pause-media'){stopCamera();stopMic();}});
+  window.addEventListener('pagehide',()=>{stopCamera();stopMic();clearPhotoUrl();});
+  updateHud();
 }
 bind();
-onAuthStateChanged(auth,async newUser=>{
-  user=newUser;stopMic();clearPreviewUrl();$('preview-panel').classList.add('hidden');
-  $('signin').classList.toggle('hidden',!!user);$('workspace').classList.toggle('hidden',!user);$('logout').classList.toggle('hidden',!user);
+onAuthStateChanged(auth,async u=>{
+  // Comparte sesión de la aplicación original: NO se muestra login adicional.
+  user=u;stopMic();stopCamera();rawPhotoCanvas=null;currentRecord=null;currentImageBlob=null;clearPhotoUrl();$('preview-panel').classList.add('hidden');
+  $('signin').classList.toggle('hidden',!!user);$('workspace').classList.toggle('hidden',!user);
   if(!user){profile=null;coords=null;return;}
-  $('user-tag').textContent=user.email||'Usuario autenticado';
-  try{await Promise.all([loadProfile(),loadPlaces(),loadHistory()]);await loadAdmin();}
-  catch(error){alertUser('Error al iniciar: '+humanError(error),true);}
+  $('user-tag').textContent=user.email||'Cuenta autenticada';
+  try{await Promise.all([loadProfile(),loadPlaces(),loadHistory()]);await loadAdmin();}catch(e){notify('Error al cargar SonoGuard IA: '+errorText(e),true);}
 });

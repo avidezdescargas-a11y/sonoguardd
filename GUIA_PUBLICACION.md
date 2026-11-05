@@ -1,88 +1,58 @@
-# Publicar SonoGuard IA en GitHub Pages sin perder los hospitales
+# SonoGuard IA — nueva cámara en vivo, integrada en el mismo panel
 
-## 0. Protege tu proyecto
+## Cambios principales
 
-**No subas el ZIP como archivo único a Pages.** Descomprímelo y conserva la estructura con `public/`, `firestore.rules`, `functions/` y `.github/workflows/pages.yml`.
+- **No hay segundo formulario de inicio de sesión**: SonoGuard IA se abre dentro del panel principal usando la misma cuenta de Firebase Authentication. Si se abre su URL por separado sin sesión, se dirige al login original.
+- **Cámara en directo**: pulsa **📸 Evidencia + IA**, después **Abrir cámara en vivo**. La vista muestra hora de Bolivia, lugar indicado y lectura actual en dBFS, o valor SPL externo *declarado*.
+- **Tomar foto ahora** captura un fotograma de la cámara en ese instante, junto con el valor/hora/lugar congelados de ese momento. No solicita subir una foto desde la galería y **no la sube automáticamente**.
+- **WhatsApp de prueba**: tras tomar la foto pulsa **WhatsApp de prueba · pedir nombre**. Se solicitarán nombre y apellidos completos y consentimiento, se pondrá el nombre **dentro de la imagen JPG**, se descargará esa imagen y se abrirá un mensaje preparado al **+591 75830320**.
+- **La foto NO se adjunta automáticamente a WhatsApp.** El usuario debe adjuntar manualmente el JPG descargado y confirmar si quiere enviar el mensaje. El contacto es una simulación académica; no se envían denuncias oficiales.
+- **Guardado opcional**: el usuario puede marcar «También autorizo guardar» durante el envío o pulsar **Guardar en historial privado**. Solo entonces se crea un registro en `sgProfiles`, `sgEvidence` y Storage con las reglas nuevas.
+- **IA**: el análisis mediante OpenAI requiere guardar primero la evidencia y desplegar Cloud Functions con el secreto `OPENAI_API_KEY`.
 
-- Primero haz un respaldo **de tu repositorio** y revisa las reglas *actualmente publicadas* en Firebase Console. Si son distintas de este paquete, NO las reemplaces sin comparar los cambios.
-- Este ZIP **no contiene ni exporta los documentos de la base de datos remota**, porque no tenemos conexión a tu cuenta. No se crearon ni borraron hospitales. Los registros en `places` se mantienen en el proyecto Firebase existente; no cambies de proyecto ni borres su base de datos.
-- Se recibió un `firestore.rules` con `adminUid()` apuntando a `REEMPLAZA_UID_ADMIN`; en este ZIP se corrigió solo ese valor usando el UID ya presente en `public/firebase-config.js`. Confirma que sea el UID administrador real antes de publicar.
+## Importante: base de datos anterior
 
-## 1. Configuración y comprobaciones locales
+El proyecto usa el **mismo `firebase-config.js`** que recibimos. No se cambian ni se migran los documentos actuales de hospitales/escuelas/zonas en `places/`, ni `settings/global`. La aplicación conserva el analizador de 31 bandas, mapa, roles, historia local y configuración de Firebase. No se realizó ninguna operación remota. Las reglas del ZIP son una copia aditiva de las reglas *que compartiste*; **compráralas con las reglas actualmente publicadas** en tu Firebase antes de desplegar para evitar perder otros permisos.
 
-Necesitas Node.js >=22, acceso a Internet, y el CLI de Firebase.
+## Subir directamente desde GitHub web (sin GitHub Desktop)
+
+1. **Descarga** y descomprime el ZIP nuevo. Haz copia de seguridad de tu repositorio actual y exporta/respalda las reglas actualmente publicadas en Firebase.
+2. En GitHub, abre tu repositorio SonoGuard actual y la rama `main`. Ve a **Add file → Upload files**.
+3. Arrastra **el contenido interno** de la carpeta del proyecto, NO el ZIP: las rutas `public/index.html`, `public/app.js`, `public/sonoguard-ia.html`, `public/sonoguard-ia.js`, `public/sonoguard-shell.js`, `functions/`, `firestore.rules` y `.github/workflows/pages.yml` deben quedar en la raíz correcta. Si no puedes subir carpetas ocultas, crea `.github/workflows/pages.yml` mediante **Add file → Create new file** o conserva la existente.
+4. Comprueba la lista de archivos a cambiar, confirma el commit y ve a **Actions**. El flujo existente de Pages publica **solo `public/`**.
+5. En **Settings → Pages → Source** selecciona **GitHub Actions**. Abre `https://USUARIO.github.io/REPOSITORIO/`, inicia sesión una sola vez y pulsa **📸 Evidencia + IA**.
+
+> Publicar en GitHub Pages no publica reglas ni funciones de Firebase. La cámara funcionará con permisos del navegador en HTTPS. Si aún no despliegas el backend, el historial nuevo, almacenamiento en nube y OpenAI podrían dar error, pero la captura y descarga local de JPG pueden usarse con la sesión existente.
+
+## Firebase: solo después de respaldo y revisión de permisos
+
+En tu computadora, desde la raíz del proyecto, después de seleccionar el proyecto Firebase **actual** (el que ya tiene hospitales):
 
 ```bash
 npm install
 npm run check
 node --check public/sonoguard-ia.js
+node --check public/sonoguard-shell.js
 node --test functions/test/logic.test.cjs
-```
-
-Si tienes Java 21+ también puedes probar reglas con `npm run test:rules` después de instalar las dependencias. El comando corre en un emulador local, NO modifica la base real.
-
-Verifica que `public/firebase-config.js` use el proyecto Firebase correcto. Activa en **el mismo proyecto**: Authentication Email/Password, Firestore, Cloud Storage y Cloud Functions. **Storage y Functions pueden requerir Blaze/facturación**: define alertas y límites de consumo.
-
-## 2. Crear secreto de OpenAI, sin publicarlo
-
-En la raíz del proyecto:
-
-```bash
 npx firebase-tools login
 npx firebase-tools use --add
 npm install --prefix functions
 npx firebase-tools functions:secrets:set OPENAI_API_KEY
-```
-
-Selecciona el proyecto que ya tiene hospitales. El último comando solicita la API Key en consola. NO la incluyas en `public/`, `firebase-config.js`, GitHub o ChatGPT.
-
-## 3. Verifica reglas y publica servicios Firebase (NO es parte de GitHub Pages)
-
-Si antes usabas otras reglas de Storage o Functions, revisa y fusiona manualmente: el archivo `storage.rules` de este paquete **deniega acceso fuera de `sgEvidence/`**, así que NO lo despliegues sin integrar las reglas anteriores si utilizabas otros archivos en Storage.
-
-Después de revisar las reglas y hacer el respaldo:
-
-```bash
+# SOLO después de validar los archivos de reglas contra los publicados:
 npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage,functions
 ```
 
-Este despliegue actualiza reglas y funciones, pero **no borra documentos** en `places` o `settings/global`. Revisa la salida de consola y los índices creados. Para reducir riesgo puedes primero desplegar solo las reglas en un proyecto Firebase de pruebas.
+Se requiere configurar Storage, Functions y posiblemente plan Blaze/facturación. No subas la clave de OpenAI a GitHub ni a `public/`. El despliegue de reglas **sustituye** los permisos publicados en Firebase, por lo que debes comparar/respaldar antes. GitHub Pages no ejecuta el backend.
 
-Configura el dominio `TU_USUARIO.github.io` en Authentication > Settings > Authorized domains. Si el navegador reporta problemas CORS al leer fotos desde GitHub Pages, revisa la configuración de CORS del bucket de Storage: https://cloud.google.com/storage/docs/using-cors . Mantén siempre las imágenes privadas mediante reglas, no las hagas públicas para saltar CORS.
+## Prueba final
 
-## 4. Subir a GitHub Pages
+1. En el SonoGuard principal, inicia sesión una vez. Comprueba que el mapa conserva tus hospitales registrados.
+2. Pulsa el botón **📸 Evidencia + IA**; debe aparecer el módulo dentro de la misma página **sin volver a pedir usuario/contraseña**.
+3. Escribe zona (o elige un lugar registrado), activa micrófono, pulsa **Abrir cámara en vivo**. Acepta permisos de navegador.
+4. Verifica la hora, lugar y valor sobre el video. Pulsa **Tomar foto ahora** y confirma que la foto muestre los mismos datos congelados en el JPG.
+5. Pulsa WhatsApp, introduce el **nombre completo**, da consentimiento; se descargará JPG con nombre y abrirá la conversación de **prueba 75830320**. **Adjunta manualmente** la foto. No envíes una denuncia oficial.
+6. Si deseas historial, guarda con autorización en Firebase. Para IA, configura y despliega el backend primero.
 
-En tu repositorio actual, sube los archivos descomprimidos respetando estas rutas, o desde Git si lo tienes configurado:
+## Notas éticas y técnicas
 
-```bash
-git add .
-git commit -m "Integrar SonoGuard IA: evidencia, historial, geolocalización y OpenAI"
-git push origin main
-```
-
-GitHub > Settings > Pages > Source: **GitHub Actions**. El flujo incluido `.github/workflows/pages.yml` publica **solo** `public/`, es decir, no expone reglas, funciones ni secretos.
-
-Sitio: `https://TU_USUARIO.github.io/TU_REPOSITORIO/`.
-Nueva sección: `https://TU_USUARIO.github.io/TU_REPOSITORIO/sonoguard-ia.html`.
-
-## 5. Pruebas de seguridad y funcionales
-
-1. Inicia sesión con un usuario existente. Debes ver hospitales, mapa y gráficas como antes.
-2. Abre **📸 Evidencia + IA**, guarda tu perfil con nombre completo y acepta consentimiento.
-3. Activa el micrófono y concede permiso (obtendrás dBFS), o usa lectura externa *declarada*, sin inventar una conversión.
-4. Toma una foto y confirma el lugar. El GPS solo se usará si das permiso.
-5. La imagen generada debe mostrar nombre, valor con su unidad, hora local, lugar y aviso de prueba.
-6. Guarda y consulta en el historial; la foto debe ser privada para otros usuarios.
-7. Al pulsar la imagen se debe abrir `wa.me/59175830320` con texto prellenado. No se envía ningún mensaje sin tu intervención ni se adjunta automáticamente la imagen.
-8. Comprueba que el número 67123590 solo figura como **referencia municipal publicada en 2022, sin confirmar**.
-9. Activa el análisis con IA tras configurar el secreto y desplegar la función. Se limita a 10 llamadas diarias por cuenta, espaciadas al menos 30 segundos. La IA recibe número y escala; el texto de tu pregunta se envía también, así que no escribas datos personales.
-10. Prueba un usuario normal para confirmar que no puede modificar `places` ni `settings/global`.
-
-## Protección, alcance y advertencias
-
-- El historial anterior que `app.js` guardaba en el navegador permanece allí; este módulo añade uno nuevo en Firestore, no migra automáticamente CSV anteriores.
-- Un administrador puede leer los metadatos de evidencias, no las fotos privadas de otros usuarios.
-- El nombre del denunciante no está verificado; una fotografía puede ser editada y NO demuestra por sí sola quién generó el ruido.
-- **NO ES UN CANAL OFICIAL DE DENUNCIAS** ni un sonómetro certificado. No afirmes que se ha infringido un límite legal.
-- Una vez que el proyecto se use con personas reales, publica una política de privacidad, define retención de datos y explica cómo se eliminan fotos/mediciones. Habilita Firebase App Check antes de un despliegue público amplio y activa su cumplimiento también en la función.
-- Si publicas las reglas en el proyecto actual, puede cambiar el acceso, así que conviene validarlas con el emulador y tu configuración real.
+El número municipal `67123590` aparece únicamente como referencia publicada en 2022, con vigencia pendiente de confirmar. Son lecturas orientativas; dBFS del micrófono del navegador **no** son decibelios ambientales dB SPL. No se acusa ni sanciona automáticamente a establecimientos. No publiques rostros, matrículas ni datos personales ajenos sin fundamento. No se garantiza que los datos y fotografías sean prueba legal.
