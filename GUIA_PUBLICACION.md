@@ -1,58 +1,58 @@
-# SonoGuard IA — nueva cámara en vivo, integrada en el mismo panel
+# Cómo subir SonoGuard IA directamente a GitHub Pages
 
-## Cambios principales
+**Esta versión guarda las fotos automáticamente en Firebase y agrega un chat flotante.** No se ha desplegado en tu Firebase real ni en tu GitHub. Conserva tu base de datos actual: las colecciones `places` y `settings/global` son las mismas.
 
-- **No hay segundo formulario de inicio de sesión**: SonoGuard IA se abre dentro del panel principal usando la misma cuenta de Firebase Authentication. Si se abre su URL por separado sin sesión, se dirige al login original.
-- **Cámara en directo**: pulsa **📸 Evidencia + IA**, después **Abrir cámara en vivo**. La vista muestra hora de Bolivia, lugar indicado y lectura actual en dBFS, o valor SPL externo *declarado*.
-- **Tomar foto ahora** captura un fotograma de la cámara en ese instante, junto con el valor/hora/lugar congelados de ese momento. No solicita subir una foto desde la galería y **no la sube automáticamente**.
-- **WhatsApp de prueba**: tras tomar la foto pulsa **WhatsApp de prueba · pedir nombre**. Se solicitarán nombre y apellidos completos y consentimiento, se pondrá el nombre **dentro de la imagen JPG**, se descargará esa imagen y se abrirá un mensaje preparado al **+591 75830320**.
-- **La foto NO se adjunta automáticamente a WhatsApp.** El usuario debe adjuntar manualmente el JPG descargado y confirmar si quiere enviar el mensaje. El contacto es una simulación académica; no se envían denuncias oficiales.
-- **Guardado opcional**: el usuario puede marcar «También autorizo guardar» durante el envío o pulsar **Guardar en historial privado**. Solo entonces se crea un registro en `sgProfiles`, `sgEvidence` y Storage con las reglas nuevas.
-- **IA**: el análisis mediante OpenAI requiere guardar primero la evidencia y desplegar Cloud Functions con el secreto `OPENAI_API_KEY`.
+## A. Subir a GitHub desde el navegador (sin GitHub Desktop)
 
-## Importante: base de datos anterior
+1. Descarga el ZIP y **descomprímelo**. Abre la carpeta `SonoGuard_IA_Flotante_Autoguardado`.
+2. En GitHub, entra al repositorio actual de SonoGuard y abre la rama `main`. **Haz una copia de seguridad o conserva el commit actual para revertir.**
+3. Haz clic en **Add file → Upload files**. Arrastra **el contenido de la carpeta**, no el ZIP ni la carpeta exterior. Deben quedar `public/`, `functions/`, `firestore.rules`, `firebase.json` y `.github/` en la raíz.
+4. Si la carpeta oculta `.github/` no se sube desde tu navegador, conserva la existente del repositorio (el archivo `.github/workflows/pages.yml`) o créala con **Add file → Create new file**.
+5. Comprueba los archivos modificados y que no estés eliminando otros datos del repositorio. Pulsa **Commit changes**.
+6. En tu repositorio abre **Settings → Pages → Source: GitHub Actions**. En **Actions**, comprueba que «Publicar SonoGuard» termina con marca verde. Publica **solo `public/`**.
+7. Abre `https://TU_USUARIO.github.io/TU_REPOSITORIO/`. Inicia sesión con tu cuenta normal. Debes ver el icono flotante `✦ IA` abajo a la derecha; el botón «📸 Evidencia + IA» abre el módulo cámara en el mismo panel.
 
-El proyecto usa el **mismo `firebase-config.js`** que recibimos. No se cambian ni se migran los documentos actuales de hospitales/escuelas/zonas en `places/`, ni `settings/global`. La aplicación conserva el analizador de 31 bandas, mapa, roles, historia local y configuración de Firebase. No se realizó ninguna operación remota. Las reglas del ZIP son una copia aditiva de las reglas *que compartiste*; **compráralas con las reglas actualmente publicadas** en tu Firebase antes de desplegar para evitar perder otros permisos.
+**La subida a GitHub NO activa la IA ni el guardado en nube por sí sola.** GitHub Pages solo aloja archivos web estáticos.
 
-## Subir directamente desde GitHub web (sin GitHub Desktop)
+## B. Preparar Firebase sin tocar tus hospitales
 
-1. **Descarga** y descomprime el ZIP nuevo. Haz copia de seguridad de tu repositorio actual y exporta/respalda las reglas actualmente publicadas en Firebase.
-2. En GitHub, abre tu repositorio SonoGuard actual y la rama `main`. Ve a **Add file → Upload files**.
-3. Arrastra **el contenido interno** de la carpeta del proyecto, NO el ZIP: las rutas `public/index.html`, `public/app.js`, `public/sonoguard-ia.html`, `public/sonoguard-ia.js`, `public/sonoguard-shell.js`, `functions/`, `firestore.rules` y `.github/workflows/pages.yml` deben quedar en la raíz correcta. Si no puedes subir carpetas ocultas, crea `.github/workflows/pages.yml` mediante **Add file → Create new file** o conserva la existente.
-4. Comprueba la lista de archivos a cambiar, confirma el commit y ve a **Actions**. El flujo existente de Pages publica **solo `public/`**.
-5. En **Settings → Pages → Source** selecciona **GitHub Actions**. Abre `https://USUARIO.github.io/REPOSITORIO/`, inicia sesión una sola vez y pulsa **📸 Evidencia + IA**.
+Antes de desplegar reglas **haz un respaldo de tu Firestore** y **compara `firestore.rules` del ZIP con las reglas actualmente publicadas** en tu proyecto. El deploy reemplaza los permisos publicados. Confirma que `public/firebase-config.js` apunta a tu Firebase **original** y que `appConfig.adminUid` coincide con el administrador real. No crees otro Firebase.
 
-> Publicar en GitHub Pages no publica reglas ni funciones de Firebase. La cámara funcionará con permisos del navegador en HTTPS. Si aún no despliegas el backend, el historial nuevo, almacenamiento en nube y OpenAI podrían dar error, pero la captura y descarga local de JPG pueden usarse con la sesión existente.
+En tu computadora, con Node.js compatible, dentro de la carpeta descomprimida:
 
-## Firebase: solo después de respaldo y revisión de permisos
-
-En tu computadora, desde la raíz del proyecto, después de seleccionar el proyecto Firebase **actual** (el que ya tiene hospitales):
-
-```bash
+```sh
 npm install
 npm run check
-node --check public/sonoguard-ia.js
-node --check public/sonoguard-shell.js
-node --test functions/test/logic.test.cjs
+npm run check:ia
 npx firebase-tools login
 npx firebase-tools use --add
 npm install --prefix functions
 npx firebase-tools functions:secrets:set OPENAI_API_KEY
-# SOLO después de validar los archivos de reglas contra los publicados:
+```
+
+Para el último comando escribe **tu propia clave de OpenAI solo en la terminal**; no la compartas ni la subas a GitHub. Debes habilitar Cloud Firestore, Cloud Storage, Cloud Functions y el plan compatible con facturación (normalmente Blaze). Configura alertas de gasto.
+
+**Únicamente tras respaldar y validar las reglas**, despliega desde la misma carpeta:
+
+```sh
 npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage,functions
 ```
 
-Se requiere configurar Storage, Functions y posiblemente plan Blaze/facturación. No subas la clave de OpenAI a GitHub ni a `public/`. El despliegue de reglas **sustituye** los permisos publicados en Firebase, por lo que debes comparar/respaldar antes. GitHub Pages no ejecuta el backend.
+Esto requiere credenciales/permisos de tu proyecto real. Debes tener configurada la extensión de Storage y habilitadas las API de Google necesarias. El comando publica reglas y funciones; no elimina automáticamente documentos, pero sí puede alterar permisos si las reglas no coinciden con las que tenías publicadas.
 
-## Prueba final
+## C. Comprobaciones
 
-1. En el SonoGuard principal, inicia sesión una vez. Comprueba que el mapa conserva tus hospitales registrados.
-2. Pulsa el botón **📸 Evidencia + IA**; debe aparecer el módulo dentro de la misma página **sin volver a pedir usuario/contraseña**.
-3. Escribe zona (o elige un lugar registrado), activa micrófono, pulsa **Abrir cámara en vivo**. Acepta permisos de navegador.
-4. Verifica la hora, lugar y valor sobre el video. Pulsa **Tomar foto ahora** y confirma que la foto muestre los mismos datos congelados en el JPG.
-5. Pulsa WhatsApp, introduce el **nombre completo**, da consentimiento; se descargará JPG con nombre y abrirá la conversación de **prueba 75830320**. **Adjunta manualmente** la foto. No envíes una denuncia oficial.
-6. Si deseas historial, guarda con autorización en Firebase. Para IA, configura y despliega el backend primero.
+1. Accede a SonoGuard y verifica que todos los hospitales, escuelas y lugares anteriores sigan en el mapa. Comprueba los permisos de administración.
+2. Comprueba que el icono flotante `✦ IA` siempre esté visible dentro del panel y sobre la cámara. Pulsa y verifica el saludo «¿En qué puedo ayudarte?».
+3. Envía una pregunta. El chat debe responder después de instalar la Cloud Function y configurar la clave; no necesitas tomar ninguna foto ni volver a iniciar sesión.
+4. Pulsa `📸 Evidencia + IA`, abre la cámara, inicia el micrófono o declara una lectura externa, selecciona lugar y pulsa `📸 Tomar foto ahora`.
+5. Comprueba que **sin pedir nombre** aparece «Guardando fotografía…» y después «Foto guardada» en el historial y un JPG en descargas. La cámara/micrófono sí requiere autorización del navegador.
+6. Toca la foto o `WhatsApp de prueba`. Escribe nombre completo y acepta mostrarlo en la **copia** para enviar. Se descarga un JPG con nombre y se abre WhatsApp al **75830320** con un borrador de prueba. Adjunta la imagen manualmente. No envíes denuncias reales durante las pruebas.
+7. Verifica que puedes abrir, descargar y eliminar una foto propia. Revisa que otro usuario no pueda consultar fotos ajenas.
 
-## Notas éticas y técnicas
+## Notas
 
-El número municipal `67123590` aparece únicamente como referencia publicada en 2022, con vigencia pendiente de confirmar. Son lecturas orientativas; dBFS del micrófono del navegador **no** son decibelios ambientales dB SPL. No se acusa ni sanciona automáticamente a establecimientos. No publiques rostros, matrículas ni datos personales ajenos sin fundamento. No se garantiza que los datos y fotografías sean prueba legal.
+- Si Firebase Storage no está activo o el despliegue de reglas falla, la captura se puede visualizar y se intenta descargar automáticamente, pero **no quedará guardada en la nube**. Corrige Firebase antes de confiar en el historial.
+- Si WhatsApp no abre un chat en navegador/escritorio, puede requerir tener WhatsApp instalado y sesión activa.
+- Las medidas de micrófono son dBFS y no justifican sanciones. Los valores SPL externos introducidos manualmente tampoco son certificados.
+- La función flotante es un asistente de orientación y no sustituye a autoridades públicas ni a un sonómetro calibrado.

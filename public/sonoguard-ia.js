@@ -14,7 +14,7 @@ const TRIAL='59175830320',OFFICIAL_REFERENCE='67123590'; // solo referencia muni
 let user=null,profile=null,places=[],coords=null;
 let cameraStream=null,clockTimer=0,rawPhotoCanvas=null;
 let microphone=null,audioContext=null,audioNode=null,analyzer=null,micFrame=0,lastReading=null,lastReadingAt=0;
-let currentRecord=null,currentImageBlob=null,currentObjectUrl=null,currentAnalysis=null,reporterMode='share';
+let currentRecord=null,currentImageBlob=null,currentObjectUrl=null,currentAnalysis=null;
 let statusTimer;
 function notify(message,error=false){const el=$('status');el.textContent=message;el.classList.toggle('error',error);el.classList.add('visible');clearTimeout(statusTimer);statusTimer=setTimeout(()=>el.classList.remove('visible'),6800);}
 function errorText(e){const s=String(e?.code||'');if(s.includes('permission-denied'))return 'Permiso denegado. Verifica reglas y usuario de Firebase.';if(s.includes('storage/'))return 'Revisa la activación de Firebase Storage y sus permisos.';return String(e?.message||'Ocurrió un error.').slice(0,250);}
@@ -26,7 +26,6 @@ function make(type,cls,txt){const a=document.createElement(type);if(cls)a.classN
 function trialLink(r){const text=`SONOGUARD IA · PROYECTO DE PRUEBA. No es una denuncia oficial.\nNombre completo: ${r.ownerName||''}\nLugar de medición: ${r.zone}.\nLectura orientativa: ${number(r.db)} ${r.unit}.\nHora (Bolivia): ${formatDate(recordDate(r))}.\nPosible fuente indicada por el usuario (sin verificar): ${r.reportedSource||'no indicada'}.\nLa foto se adjunta manualmente. No acredita una infracción.`;return `https://wa.me/${TRIAL}?text=${encodeURIComponent(text)}`;}
 
 async function loadProfile(){const snap=await getDoc(doc(db,'sgProfiles',user.uid));profile=snap.exists()?snap.data():null;}
-async function saveProfileForName(name){const data={fullName:name,organization:profile?.organization||'',type:profile?.type||'ciudadano',consent:true,updatedAt:serverTimestamp()};await setDoc(doc(db,'sgProfiles',user.uid),data);profile=data;}
 async function loadPlaces(){const select=$('known-place');select.replaceChildren(new Option('Sin seleccionar',''));try{const snap=await getDocs(query(collection(db,'places'),limit(250)));places=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>typeof p.name==='string').sort((a,b)=>a.name.localeCompare(b.name,'es'));for(const p of places)select.add(new Option(`${p.name} · ${p.type||'Lugar'}`,p.id));}catch(e){notify('No se pudieron consultar los lugares de SonoGuard: '+errorText(e),true);}}
 
 function updateHud(){
@@ -88,11 +87,11 @@ function measure(){
 function wrapLines(ctx,text,maxWidth,maxLines=3){
   const parts=String(text||'').split(/\s+/),out=[];let line='';for(const part of parts){const next=line?`${line} ${part}`:part;if(ctx.measureText(next).width>maxWidth&&line){out.push(line);line=part;}else line=next;}if(line)out.push(line);return out.slice(0,maxLines);
 }
-function composePhoto(r){
-  if(!rawPhotoCanvas)throw Error('No existe la foto original de esta sesión.');
-  const width=Math.min(1500,Math.max(900,rawPhotoCanvas.width));const imageHeight=Math.round(rawPhotoCanvas.height*width/rawPhotoCanvas.width);
+function composePhoto(r,sourceCanvas=rawPhotoCanvas){
+  if(!sourceCanvas)throw Error('No existe la foto original de esta sesión.');
+  const width=Math.min(1500,Math.max(900,sourceCanvas.width));const imageHeight=Math.round(sourceCanvas.height*width/sourceCanvas.width);
   const footerHeight=430;const canvas=document.createElement('canvas');canvas.width=width;canvas.height=imageHeight+footerHeight;
-  const c=canvas.getContext('2d');if(!c)throw Error('No se pudo crear la imagen.');c.fillStyle='#0b2433';c.fillRect(0,0,canvas.width,canvas.height);c.drawImage(rawPhotoCanvas,0,0,width,imageHeight);
+  const c=canvas.getContext('2d');if(!c)throw Error('No se pudo crear la imagen.');c.fillStyle='#0b2433';c.fillRect(0,0,canvas.width,canvas.height);c.drawImage(sourceCanvas,0,0,width,imageHeight);
   c.fillStyle='rgba(7,26,40,.94)';c.fillRect(0,imageHeight,width,footerHeight);
   const left=35,available=width-70;
   c.fillStyle='#72f2d7';c.font='bold 32px system-ui';c.fillText('SONOGUARD IA · FOTO DE EVIDENCIA',left,imageHeight+50);
@@ -111,12 +110,13 @@ function clearPhotoUrl(){if(currentObjectUrl)URL.revokeObjectURL(currentObjectUr
 function showPreview(record,blob,{fromHistory=false}={}){
   currentRecord=record;currentImageBlob=blob;currentAnalysis=null;clearPhotoUrl();currentObjectUrl=URL.createObjectURL(blob);
   $('preview-image').src=currentObjectUrl;$('preview-panel').classList.remove('hidden');$('analysis-result').classList.add('hidden');$('ai-question').value='';
-  $('save-cloud').disabled=!!record.id; // No sobrescribe evidencias inmutables.
   if(fromHistory)rawPhotoCanvas=null;
   $('preview-panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function captureNow(){
   if(!user)return;
+  const btn=$('create-evidence');if(btn.disabled)return;
+  busy(btn,true,'📸 Tomar foto ahora');
   try{
     const video=$('camera-video');if(!cameraStream||video.readyState<2||!video.videoWidth)throw Error('Primero abre la cámara y espera la imagen en vivo.');
     const zone=$('zone').value.trim()||(coords?`${coords.lat}, ${coords.lng} (GPS aproximado)`:'');if(zone.length<3)throw Error('Escribe el lugar de medición, elige un lugar registrado o utiliza la ubicación GPS.');
@@ -124,59 +124,73 @@ async function captureNow(){
     const width=Math.min(1600,video.videoWidth),height=Math.round(video.videoHeight*width/video.videoWidth);
     rawPhotoCanvas=document.createElement('canvas');rawPhotoCanvas.width=width;rawPhotoCanvas.height=height;
     rawPhotoCanvas.getContext('2d').drawImage(video,0,0,width,height);
+    // Nombre en blanco por privacidad: se solicita únicamente al preparar WhatsApp.
     const record={ownerUid:user.uid,ownerName:'',nameMode:'full',db:reading.db,unit:reading.unit,source:reading.source,zone,placeName:places.find(p=>p.id===$('known-place').value)?.name||'',reportedSource:$('possible-source').value.trim(),lat:coords?.lat??null,lng:coords?.lng??null,capturedAt:now};
-    const blob=await canvasJpeg(composePhoto(record));showPreview(record,blob);notify('¡Foto capturada en ese instante! Puedes descargarla o preparar WhatsApp.');
+    const blob=await canvasJpeg(composePhoto(record));showPreview(record,blob);
+    // Guardar una copia local sin diálogo de confirmación de la aplicación.
+    // El navegador puede gestionar permisos y ubicación de descargas según sus ajustes.
+    downloadJpg(blob);
+    $('auto-save-state').textContent='Descarga de JPG solicitada. Guardando fotografía en tu historial privado…';
+    notify('Foto tomada. Guardando evidencia en Firebase…');
+    try{
+      await persistEvidence(record,blob);
+      $('auto-save-state').textContent='✓ Descarga de JPG solicitada y copia guardada en Firebase. Puedes borrarla desde Historial.';
+    }catch(e){
+      $('auto-save-state').textContent='La descarga del JPG se solicitó, pero falló el guardado en Firebase. Puedes volver a descargarlo aquí.';
+      notify('La foto está tomada, pero no se guardó en Firebase: '+errorText(e),true);
+    }
   }catch(e){notify(errorText(e),true);}
+  finally{busy(btn,false,'📸 Tomar foto ahora');}
 }
 function downloadJpg(blob=currentImageBlob){if(!blob)return;const url=URL.createObjectURL(blob),a=make('a');a.href=url;a.download=`SonoGuard-evidencia-${Date.now()}.jpg`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
 function downloadDataUrl(dataUrl){const a=make('a');a.href=dataUrl;a.download=`SonoGuard-evidencia-con-nombre-${Date.now()}.jpg`;document.body.append(a);a.click();a.remove();}
-function openReporter(mode){if(!currentRecord)return notify('Primero toma una foto o selecciona una evidencia.',true);reporterMode=mode;
-  $('reporter-title').textContent=mode==='share'?'Preparar WhatsApp de prueba':'Guardar evidencia privada';
-  $('reporter-help').textContent=mode==='share'?'Escribe tu nombre completo: se incluirá en la foto y en el mensaje preparado.':'Escribe tu nombre completo: se incluirá en la evidencia privada que guardes.';
-  $('reporter-name').value=currentRecord.ownerName||profile?.fullName||'';
-  $('reporter-consent').checked=false;$('save-consent').checked=mode==='save';$('save-consent-row').classList.toggle('hidden',mode==='save');
-  $('confirm-reporter').textContent=mode==='share'?'Descargar foto y abrir WhatsApp de prueba':'Guardar en Firebase';
+function openReporter(){
+  if(!currentRecord)return notify('Primero toma una foto o selecciona una evidencia.',true);
+  $('reporter-name').value=profile?.fullName||currentRecord.ownerName||'';
+  $('reporter-consent').checked=false;
   $('reporter-dialog').showModal();
 }
 async function persistEvidence(r,blob){
-  if(r.id)return; // registro histórico ya guardado: no modificar.
-  await saveProfileForName(r.ownerName); // Reglas de Firestore exigen coincidencia con perfil.
+  if(r.id)return;
   const id=doc(collection(db,'sgEvidence')).id,path=`sgEvidence/${user.uid}/${id}.jpg`;
-  const record={...r,ownerUid:user.uid,createdAt:serverTimestamp(),photoPath:path};
+  // La captura se guarda sin nombre; solo la copia compartida por WhatsApp lo incorpora.
+  const record={...r,ownerUid:user.uid,ownerName:'',createdAt:serverTimestamp(),photoPath:path};
   const image=storageRef(storage,path);await uploadBytes(image,blob,{contentType:'image/jpeg'});
   try{await setDoc(doc(db,'sgEvidence',id),record);}catch(e){await deleteObject(image).catch(()=>{});throw e;}
-  currentRecord={...r,id,photoPath:path};$('save-cloud').disabled=true;await loadHistory();notify('Evidencia guardada en tu historial privado de Firebase.');
+  currentRecord={...r,id,photoPath:path};await loadHistory();
+  notify('Fotografía guardada automáticamente en tu historial privado.');
+}
+async function sharedImage(record){
+  if(rawPhotoCanvas)return canvasJpeg(composePhoto(record));
+  if(!currentImageBlob)throw Error('No se encuentra la fotografía.');
+  // Las imágenes guardadas contienen una franja de 430 px añadida por composePhoto.
+  // Recrear la imagen desde su área fotográfica evita duplicar metadatos.
+  const bitmap=await createImageBitmap(currentImageBlob);
+  try{
+    if(bitmap.height<=430)throw Error('La imagen guardada no contiene el formato esperado.');
+    const base=document.createElement('canvas');base.width=bitmap.width;base.height=bitmap.height-430;
+    base.getContext('2d').drawImage(bitmap,0,0,bitmap.width,base.height,0,0,base.width,base.height);
+    return canvasJpeg(composePhoto(record,base));
+  }finally{bitmap.close?.();}
 }
 async function submitReporter(e){
   e.preventDefault();if(!currentRecord||!user)return;
   const name=$('reporter-name').value.trim().replace(/\s+/g,' ');
-  if(name.length<5||name.length>100||name.split(' ').length<2)return notify('Escribe al menos nombre y apellido completos.',true);
-  if(!$('reporter-consent').checked)return notify('Debes autorizar el uso de tu nombre completo en la foto.',true);
-  if(currentRecord.id && currentRecord.ownerName!==name)return notify('Esta evidencia guardada es inmutable. Introduce el mismo nombre con el que se guardó.',true);
-  const saveRequested=reporterMode==='save'||$('save-consent').checked;
+  if(name.length<5||name.length>100||name.split(' ').length<2)return notify('Escribe nombre y apellido completos.',true);
+  if(!$('reporter-consent').checked)return notify('Confirma el uso de tu nombre en la imagen que compartirás.',true);
   const record={...currentRecord,ownerName:name,nameMode:'full'};
-  const mode=reporterMode;
-  // Síncrono antes de abrir WhatsApp, para respetar el gesto del usuario y evitar bloqueo de ventanas.
-  let photoUrl=null;
-  if(rawPhotoCanvas){try{photoUrl=composePhoto(record).toDataURL('image/jpeg',.83);}catch(err){notify(errorText(err),true);return;}}
+  // Abrir de forma inmediata desde el evento del usuario para evitar bloqueos de ventanas.
+  const whatsAppWindow=window.open('about:blank','_blank');
   $('reporter-dialog').close();
-  if(mode==='share'){
-    if(photoUrl)downloadDataUrl(photoUrl);else downloadJpg();
-    const link=make('a');link.href=trialLink(record);link.target='_blank';link.rel='noopener noreferrer';document.body.append(link);link.click();link.remove();
-  }
-  const btn=$('confirm-reporter');busy(btn,true,'Continuar');
+  const btn=$('confirm-reporter');busy(btn,true,'Descargar foto y abrir WhatsApp');
   try{
-    const blob=photoUrl?await(await fetch(photoUrl)).blob():currentImageBlob;
-    if(rawPhotoCanvas){
-      // Mantener foto con nombre en el panel, aunque no se suba a Firebase.
-      showPreview(record,blob); // por defecto NO persiste si no se autoriza.
-    }
-    if(saveRequested){
-      if(!currentRecord?.id)await persistEvidence(record,blob);
-      else notify('Esta evidencia ya estaba guardada.');
-    }else if(mode==='share')notify('WhatsApp de prueba preparado. Adjunta la foto JPG descargada si lo deseas.');
-  }catch(err){notify('La imagen está lista; no se pudo guardar en Firebase: '+errorText(err),true);}
-  finally{busy(btn,false,mode==='share'?'Descargar foto y abrir WhatsApp de prueba':'Guardar en Firebase');}
+    const blob=await sharedImage(record);
+    downloadJpg(blob);
+    if(whatsAppWindow)whatsAppWindow.location.replace(trialLink(record));
+    else {const link=make('a');link.href=trialLink(record);link.target='_blank';link.rel='noopener noreferrer';document.body.append(link);link.click();link.remove();}
+    notify('Foto con tu nombre descargada. WhatsApp de PRUEBA abierto: adjunta la imagen y revisa antes de enviar.');
+  }catch(err){whatsAppWindow?.close();notify('No se pudo preparar la imagen: '+errorText(err),true);}
+  finally{busy(btn,false,'Descargar foto y abrir WhatsApp');}
 }
 async function aiAnalysis(question=''){
   if(!currentRecord?.id)return notify('Para usar IA, primero guarda esta foto en tu historial privado de Firebase.',true);
@@ -192,7 +206,7 @@ async function printReport(){
 }
 function historyCard(data,id){
   const card=make('article','history-card');card.append(make('h3','',`${number(data.db)} ${data.unit}`));
-  card.append(make('p','meta',`${formatDate(recordDate(data))} · ${data.zone}`));card.append(make('p','meta',`Responsable: ${data.ownerName}`));
+  card.append(make('p','meta',`${formatDate(recordDate(data))} · ${data.zone}`));card.append(make('p','meta',`Nombre del denunciante: ${data.ownerName||'se solicita al compartir'}`));
   const image=make('img');image.alt='Foto privada de evidencia';image.loading='lazy';card.insertBefore(image,card.firstChild);
   getBlob(storageRef(storage,data.photoPath)).then(blob=>{const url=URL.createObjectURL(blob);image.src=url;image.addEventListener('load',()=>setTimeout(()=>URL.revokeObjectURL(url),20000),{once:true});}).catch(()=>{image.alt='Foto no disponible';});
   const row=make('div','buttons'),see=make('button','secondary','Ver evidencia'),del=make('button','ghost','Eliminar');
@@ -203,7 +217,7 @@ function historyCard(data,id){
 }
 function renderTrends(records){const dest=$('trends');dest.replaceChildren();for(const unit of ['dBFS','dB SPL']){const set=records.filter(r=>r.unit===unit&&Number.isFinite(r.db));const panel=make('div','trend-panel');panel.append(make('h3','',unit));if(!set.length){panel.append(make('p','muted small','Sin registros de esta escala.'));dest.append(panel);continue;}const nums=set.map(r=>r.db),median=[...nums].sort((a,b)=>a-b)[Math.floor(nums.length/2)],avg=nums.reduce((a,b)=>a+b,0)/nums.length;panel.append(make('p','trend-stats',`${nums.length} mediciones · Promedio ${avg.toFixed(1)} · Mediana ${median.toFixed(1)} ${unit}`));for(const r of set.slice(0,10).reverse()){const row=make('div','trend-row'),bar=make('div','bar');bar.style.width=`${Math.max(2,((r.db+(unit==='dBFS'?120:0))/(unit==='dBFS'?120:160))*100)}%`;row.append(make('span','meta',formatDate(recordDate(r)).slice(0,10)),bar,make('span','meta',number(r.db)));panel.append(row);}panel.append(make('p','trend-warning','Resumen descriptivo: no determina infracciones ni permite comparar equipos no calibrados.'));dest.append(panel);}}
 async function loadHistory(){if(!user)return;const root=$('history');root.replaceChildren(make('p','muted','Cargando…'));try{const q=query(collection(db,'sgEvidence'),where('ownerUid','==',user.uid),orderBy('createdAt','desc'),limit(50)),snap=await getDocs(q);root.replaceChildren();renderTrends(snap.docs.map(d=>d.data()));if(snap.empty){root.append(make('p','muted','Aún no tienes evidencias guardadas.'));return;}for(const d of snap.docs)root.append(historyCard(d.data(),d.id));}catch(e){root.replaceChildren(make('p','muted','No se pudo cargar el historial. Revisa el índice compuesto y las reglas.'));notify(errorText(e),true);}}
-async function loadAdmin(){if(!user||user.uid!==appConfig?.adminUid){$('admin-section').classList.add('hidden');return;}$('admin-section').classList.remove('hidden');const el=$('admin-list');el.replaceChildren(make('p','muted','Cargando…'));try{const snap=await getDocs(query(collection(db,'sgEvidence'),orderBy('createdAt','desc'),limit(30)));el.replaceChildren();if(snap.empty)el.append(make('p','muted','Sin registros.'));for(const d of snap.docs){const r=d.data();el.append(make('p','meta',`${r.ownerName} · ${r.zone} · ${number(r.db)} ${r.unit} · ${formatDate(recordDate(r))}`));}}catch(e){el.replaceChildren(make('p','muted','No se pudo obtener la lista administrativa.'));}}
+async function loadAdmin(){if(!user||user.uid!==appConfig?.adminUid){$('admin-section').classList.add('hidden');return;}$('admin-section').classList.remove('hidden');const el=$('admin-list');el.replaceChildren(make('p','muted','Cargando…'));try{const snap=await getDocs(query(collection(db,'sgEvidence'),orderBy('createdAt','desc'),limit(30)));el.replaceChildren();if(snap.empty)el.append(make('p','muted','Sin registros.'));for(const d of snap.docs){const r=d.data();el.append(make('p','meta',`${r.ownerName||'No declarado'} · ${r.zone} · ${number(r.db)} ${r.unit} · ${formatDate(recordDate(r))}`));}}catch(e){el.replaceChildren(make('p','muted','No se pudo obtener la lista administrativa.'));}}
 function bind(){
   $('start-camera').addEventListener('click',startCamera);$('stop-camera').addEventListener('click',stopCamera);
   $('mic-toggle').addEventListener('click',toggleMic);$('create-evidence').addEventListener('click',captureNow);
@@ -211,11 +225,10 @@ function bind(){
   $('declared-db').addEventListener('input',updateHud);$('zone').addEventListener('input',updateHud);
   $('known-place').addEventListener('change',()=>{const p=places.find(x=>x.id===$('known-place').value);if(p)$('zone').value=`${p.name}, La Paz`;updateHud();});
   $('get-location').addEventListener('click',requestLocation);$('clear-location').addEventListener('click',()=>{coords=null;$('coords').textContent='Coordenadas borradas. Se guardará solo la zona escrita.';updateHud();});
-  $('preview-image').addEventListener('click',()=>openReporter('share'));
-  $('preview-image').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openReporter('share');}});
+  $('preview-image').addEventListener('click',openReporter);
+  $('preview-image').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openReporter();}});
   $('download-image').addEventListener('click',()=>downloadJpg());
-  $('open-trial').addEventListener('click',()=>openReporter('share'));
-  $('save-cloud').addEventListener('click',()=>openReporter('save'));
+  $('open-trial').addEventListener('click',openReporter);
   $('reporter-form').addEventListener('submit',submitReporter);
   $('cancel-reporter').addEventListener('click',()=>$('reporter-dialog').close());
   $('print-report').addEventListener('click',printReport);

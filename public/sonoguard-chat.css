@@ -1,0 +1,24 @@
+/* Asistente flotante visible en SonoGuard principal y dentro de Vista Evidencia/IA. */
+#sgChatRoot[hidden],#sgChatPanel[hidden]{display:none!important}
+#sgChatRoot{position:fixed;bottom:20px;right:20px;z-index:2147483000;font:14px/1.45 system-ui,-apple-system,sans-serif}
+#sgChatFab{height:64px;min-width:66px;border-radius:40px;border:2px solid #d0fff0;background:linear-gradient(130deg,#006f89,#5b3bc8);color:#fff;box-shadow:0 9px 28px #09283c66;cursor:pointer;font-weight:850;font-size:27px;display:flex;justify-content:center;align-items:center;gap:5px;transition:transform .18s ease}
+#sgChatFab:hover{transform:translateY(-3px)}#sgChatFab span{font-size:14px}
+#sgChatPanel{position:absolute;bottom:80px;right:0;width:min(385px,calc(100vw - 24px));height:min(540px,calc(100dvh - 105px));min-height:320px;border:1px solid #b4d8d5;border-radius:20px;background:#fff;color:#152c3d;box-shadow:0 12px 48px #08152555;display:flex;flex-direction:column;overflow:hidden}
+#sgChatPanel .sgChatHead{padding:15px 17px;background:linear-gradient(130deg,#14324a,#483388);color:#fff;display:flex;justify-content:space-between;align-items:center;gap:10px}
+#sgChatPanel .sgChatHead strong{font-size:17px;display:block}#sgChatPanel .sgChatHead small{font-size:11px;color:#d9eff4;display:block}
+#sgChatPanel #sgChatClose{background:#ffffff24;box-shadow:none;color:white;border:none;border-radius:10px;padding:5px 10px;font-size:20px;cursor:pointer}
+#sgChatMessages{padding:16px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;scrollbar-color:#bbd0da #fff}
+#sgChatMessages .sgChatBubble{max-width:90%;padding:11px 13px;border-radius:15px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55}
+#sgChatMessages .sgChatAssistant{background:#eaf6f5;color:#173741;align-self:flex-start;border-bottom-left-radius:4px}
+#sgChatMessages .sgChatUser{background:#6550cd;color:white;align-self:flex-end;border-bottom-right-radius:4px}
+#sgChatMessages .sgChatSystem{background:#fff1d2;color:#744a0d;align-self:center}
+#sgChatMessages .sgChatQuick{display:flex;flex-wrap:wrap;gap:7px}
+#sgChatMessages .sgChatQuick button{border:1px solid #cfdce0;color:#185f64;background:#fff;border-radius:18px;padding:7px 9px;font-size:11px;cursor:pointer;box-shadow:none}
+#sgChatPanel .sgChatForm{padding:9px 12px 4px;border-top:1px solid #d5e3e6;display:block}
+#sgChatPanel .sgChatLabel{font-size:11px;color:#536578;margin:0 0 4px;display:block}
+#sgChatPanel .sgChatSend{display:flex;gap:7px;align-items:center}
+#sgChatPanel #sgChatInput{flex:1;min-width:0;padding:12px 10px;border:1px solid #c5d6dc;border-radius:12px;background:#fff;color:#183849;font:13px system-ui;box-sizing:border-box;box-shadow:none}
+#sgChatPanel #sgChatSend{padding:11px 12px;background:#5b3bc8;color:#fff;border-radius:11px;border:0;box-shadow:none;cursor:pointer}
+#sgChatPanel #sgChatSend:disabled{opacity:.5;cursor:wait}
+#sgChatPanel .sgChatNote{font-size:10px;color:#6a7782;margin:2px 12px 9px;line-height:1.4}
+@media(max-width:540px){#sgChatRoot{right:12px;bottom:12px}#sgChatFab{height:58px;min-width:60px}#sgChatPanel{bottom:70px;max-height:calc(100dvh - 90px);width:calc(100vw - 24px)}}

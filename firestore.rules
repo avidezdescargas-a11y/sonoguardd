@@ -55,9 +55,10 @@ service cloud.firestore {
       return d.keys().hasAll(['ownerUid','ownerName','nameMode','db','unit','source','zone','placeName','reportedSource','lat','lng','capturedAt','createdAt','photoPath'])
         && d.keys().hasOnly(['ownerUid','ownerName','nameMode','db','unit','source','zone','placeName','reportedSource','lat','lng','capturedAt','createdAt','photoPath'])
         && d.ownerUid == request.auth.uid
-        && d.ownerName is string && d.ownerName.size() >= 5 && d.ownerName.size() <= 100
-        && exists(/databases/$(database)/documents/sgProfiles/$(request.auth.uid))
-        && get(/databases/$(database)/documents/sgProfiles/$(request.auth.uid)).data.fullName == d.ownerName
+        && d.ownerName is string
+        && (d.ownerName == '' || (d.ownerName.size() >= 5 && d.ownerName.size() <= 100
+           && exists(/databases/$(database)/documents/sgProfiles/$(request.auth.uid))
+           && get(/databases/$(database)/documents/sgProfiles/$(request.auth.uid)).data.fullName == d.ownerName))
         && d.nameMode in ['full','protected']
         && d.db is number
         && ((d.unit == 'dBFS' && d.source == 'microfono' && bounded(d.db,-120,0))
@@ -80,6 +81,7 @@ service cloud.firestore {
     }
     // sgAiUsage es accesible exclusivamente desde Cloud Functions (Admin SDK).
     match /sgAiUsage/{id} { allow read, write: if false; }
+    match /sgAiChatUsage/{id} { allow read, write: if false; }
     // SONOGUARD_AI_END
 
     match /{document=**} { allow read, write: if false; }
