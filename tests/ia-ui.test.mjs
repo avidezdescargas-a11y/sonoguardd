@@ -52,3 +52,16 @@ test('Los lugares y ajustes conservan exactamente las rutas tradicionales',()=>{
   assert.match(rules,/match \/settings\/global/);
   assert.match(backend,/store:false/);
 });
+
+test('No hay lectura ni ubicación modificable; el micrófono y GPS alimentan la foto',()=>{
+  for(const id of ['reading-type','declared-db','zone','known-place','possible-source','get-location','clear-location'])
+    assert.doesNotMatch(html,new RegExp('id="'+id+'"'));
+  assert.match(html,/id="gps-status"/);
+  assert.match(html,/id="maps-link"/);
+  assert.match(code,/navigator\.geolocation\.watchPosition/);
+  assert.match(code,/startGps\(\);await startMic\(\)/);
+  assert.match(code,/if\(!gpsValid\(\)\)throw Error/);
+  assert.match(code,/const reading=measure\(\),point=\{\.\.\.coords\}/);
+  assert.match(rules,/d\.unit == 'dBFS' && d\.source == 'microfono'/);
+  assert.match(rules,/bounded\(d\.gpsAccuracyM,0,1000\)/);
+});

@@ -16,3 +16,9 @@
 #preview-image{cursor:pointer}dialog{width:min(92vw,510px);border:1px solid #46617a;background:#102235;color:#eff9ff;border-radius:17px;padding:23px;box-shadow:0 24px 70px #0009}dialog::backdrop{background:#000b}dialog h2{margin-bottom:0}
 .button-link{display:inline-block;padding:12px 18px;border-radius:10px;background:#42d0bd;color:#06212d;font-weight:800;text-decoration:none}
 @media(max-width:500px){.hud-top{flex-direction:column;gap:2px}.hud-bottom strong{font-size:26px}}
+
+/* Lectura y posición automáticas: no hay campos de introducción manual. */
+.gps-box{margin-top:18px;padding:15px;background:#193144;border-radius:12px;border:1px solid #355971}
+.gps-box strong{font-size:14px;color:#defcf7}.gps-box p{margin:9px 0 11px;overflow-wrap:anywhere}
+.maps-link{display:inline-flex;padding:9px 12px;border-radius:10px;background:#264a60;color:#aeeaf2;font-size:13px;font-weight:750;text-decoration:none}
+.maps-link[hidden]{display:none}

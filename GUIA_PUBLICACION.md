@@ -45,7 +45,7 @@ Esto requiere credenciales/permisos de tu proyecto real. Debes tener configurada
 1. Accede a SonoGuard y verifica que todos los hospitales, escuelas y lugares anteriores sigan en el mapa. Comprueba los permisos de administración.
 2. Comprueba que el icono flotante `✦ IA` siempre esté visible dentro del panel y sobre la cámara. Pulsa y verifica el saludo «¿En qué puedo ayudarte?».
 3. Envía una pregunta. El chat debe responder después de instalar la Cloud Function y configurar la clave; no necesitas tomar ninguna foto ni volver a iniciar sesión.
-4. Pulsa `📸 Evidencia + IA`, abre la cámara, inicia el micrófono o declara una lectura externa, selecciona lugar y pulsa `📸 Tomar foto ahora`.
+4. Pulsa `📸 Evidencia + IA`, abre la cámara (esto solicitará cámara, micrófono y GPS automáticamente), espera las lecturas y pulsa `📸 Tomar foto ahora`.
 5. Comprueba que **sin pedir nombre** aparece «Guardando fotografía…» y después «Foto guardada» en el historial y un JPG en descargas. La cámara/micrófono sí requiere autorización del navegador.
 6. Toca la foto o `WhatsApp de prueba`. Escribe nombre completo y acepta mostrarlo en la **copia** para enviar. Se descarga un JPG con nombre y se abre WhatsApp al **75830320** con un borrador de prueba. Adjunta la imagen manualmente. No envíes denuncias reales durante las pruebas.
 7. Verifica que puedes abrir, descargar y eliminar una foto propia. Revisa que otro usuario no pueda consultar fotos ajenas.
@@ -56,3 +56,11 @@ Esto requiere credenciales/permisos de tu proyecto real. Debes tener configurada
 - Si WhatsApp no abre un chat en navegador/escritorio, puede requerir tener WhatsApp instalado y sesión activa.
 - Las medidas de micrófono son dBFS y no justifican sanciones. Los valores SPL externos introducidos manualmente tampoco son certificados.
 - La función flotante es un asistente de orientación y no sustituye a autoridades públicas ni a un sonómetro calibrado.
+
+
+### Actualización: GPS y micrófono automáticos
+En esta versión se eliminaron el campo dB SPL declarado, la zona manual, el selector manual de lugares y el texto libre sobre fuentes de ruido. El botón de cámara activa el micrófono (dBFS) y la geolocalización del navegador; la captura solo se permite con ambos disponibles y recientes. La pantalla ofrece el enlace «Ver punto en Google Maps». Google Maps NO entrega los datos por sí solo: usa el GPS/servicio de ubicación del dispositivo para mostrar el punto. Si no se autoriza el GPS o el micrófono, no se puede capturar la evidencia. El usuario puede reintentar los sensores, sin introducir valores.
+
+**Despliegue de reglas:** se conserva el bloque exacto de `places` y `settings/global`, pero se endurece la validación de documentos NUEVOS de `sgEvidence`: dBFS de micrófono, coordenadas no nulas, precisión GPS y sin declaración manual. Las evidencias históricas se pueden seguir consultando. Revisa y respalda tus reglas antes de desplegar.
+
+**Límite de verificación:** un navegador no puede demostrar que la señal de audio y el GPS no han sido simulados o manipulados técnicamente; esto reduce la falsificación mediante formularios, pero no constituye prueba pericial ni denuncia oficial.

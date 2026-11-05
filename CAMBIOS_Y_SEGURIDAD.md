@@ -23,3 +23,13 @@
 ## Despliegue y pruebas
 
 Las pruebas locales comprueban JavaScript, estructura, guardado simulado sin formulario, y el chat flotante. **No representan una prueba de la base Firebase de producción**. Antes de desplegar, respalda las reglas reales y verifica el administrador/UID y las colecciones preexistentes. La implementación de App Check y las restricciones finales de cuota son tareas recomendadas antes de abrir el proyecto al público.
+
+
+## Corrección automática
+- Sin `lectura declarada`, `zona`, `selección de lugares` ni `posible fuente` escritos manualmente.
+- Cámara + micrófono dBFS + geolocalización se activan desde «Abrir cámara y sensores»; vista previa en vivo.
+- Lugar derivado de GPS y proximidad a lugares ya registrados (solo referencia); botón para ver en Google Maps.
+- La captura se bloquea si falta sensor o GPS fresco, y se almacena la precisión reportada.
+- Las reglas de las colecciones anteriores `places` y `settings/global` se mantienen.
+- Historial previo se puede consultar; nuevos registros se validan con `gpsAccuracyM`.
+- No garantiza integridad forense; navegador/ubicación pueden ser manipulados con herramientas especializadas.

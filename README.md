@@ -21,3 +21,7 @@ Lee **`GUIA_PUBLICACION.md`** antes de subir el contenido a tu repositorio GitHu
 **IMPORTANTE:** GitHub Pages publica la interfaz, pero no las reglas de Firestore/Storage ni las Cloud Functions. Sin configurar Firebase y el secreto `OPENAI_API_KEY`, la IA flotante no podrá responder y el guardado automático en nube fallará (la foto quedará disponible para descargar manualmente). La clave privada de OpenAI nunca va en `public/` ni en GitHub.
 
 No hemos conectado ni modificado los documentos de tu proyecto Firebase real. La actualización deja **sin cambios** los permisos existentes en `places/` y `settings/global` **dentro de los archivos de este paquete**; compara las reglas con las publicadas antes de desplegarlas. Respalda tu repositorio y Firestore antes de cambiar reglas.
+
+
+## Versión: captura totalmente automática (micrófono y GPS)
+No hay entrada manual de dB ni de zona. Al abrir la cámara se solicitan los permisos de cámara, micrófono y ubicación del navegador. Solo se habilita «Tomar foto» si hay lectura de micrófono reciente y posición GPS de menos de 45 segundos con precisión declarada de hasta 1 km. Los datos se superponen en la foto; Google Maps se abre con la posición informada por el dispositivo. Si está dentro del radio de un lugar registrado, la zona se rotula «Cerca de…» (no afirma que ese lugar produjo el ruido). No se pueden garantizar datos antifalsificación mediante un navegador: la aplicación no es un sonómetro certificado.
