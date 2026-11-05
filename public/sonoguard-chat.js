@@ -1,11 +1,11 @@
 /** SonoGuard IA: chat flotante sobre el panel principal y la cámara, misma sesión Firebase. */
-import {firebaseConfig} from './firebase-config.js';
+import {firebaseConfig,appConfig} from './firebase-config.js';
+import {consultarSonoGuardIA} from './sonoguard-ai-client.js';
 import {getApps,initializeApp} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
 import {getAuth,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
-import {getFunctions,httpsCallable} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js';
 
 const app=getApps().find(a=>a.name==='[DEFAULT]')||initializeApp(firebaseConfig);
-const auth=getAuth(app),functions=getFunctions(app,'us-central1');
+const auth=getAuth(app);
 const $=id=>document.getElementById(id);
 const root=$('sgChatRoot'),fab=$('sgChatFab'),panel=$('sgChatPanel'),messages=$('sgChatMessages'),input=$('sgChatInput'),form=$('sgChatForm'),send=$('sgChatSend');
 let user=null,working=false,history=[];
@@ -30,11 +30,7 @@ function openChat(open){
   else fab.focus();
 }
 function friendlyError(err){
-  const code=String(err?.code||'');
-  if(code.includes('resource-exhausted'))return 'Se alcanzó el límite de consultas o se está enviando demasiado rápido. Inténtalo más tarde.';
-  if(code.includes('unauthenticated'))return 'Debes tener una sesión abierta en SonoGuard.';
-  if(code.includes('not-found')||code.includes('unavailable')||code.includes('failed-precondition'))return 'La IA todavía no está disponible. Revisa el despliegue de Cloud Functions y la clave de OpenAI.';
-  return 'No pude comunicarme con la IA ahora mismo. Inténtalo de nuevo.';
+  return err?.message||'No pude comunicarme con el asistente. Revisa el Worker y sus configuraciones.';
 }
 async function submitChat(event){
   event.preventDefault();if(!user||working)return;
@@ -43,8 +39,9 @@ async function submitChat(event){
   const waiting=addMessage('Pensando…','system');
   try{
     const previous=history.slice(-6);
-    const result=await httpsCallable(functions,'chatSonoGuard')({message:question,history:previous});
-    const answer=result?.data?.answer||'No recibí respuesta.';
+    if(user.uid!==appConfig.adminUid)throw Error('La IA se limita al administrador para proteger los $5 de saldo.');
+    const result=await consultarSonoGuardIA(auth,'chat',{message:question,history:previous});
+    const answer=result?.answer||'No recibí respuesta.';
     waiting.remove();addMessage(answer);
     history=[...history,{role:'user',content:question},{role:'assistant',content:answer}].slice(-6);
   }catch(err){waiting.remove();addMessage(friendlyError(err),'system');}

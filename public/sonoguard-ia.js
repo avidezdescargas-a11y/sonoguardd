@@ -4,11 +4,11 @@ import {positiveLabel,positiveValue,positiveUnit} from './audio-display.js';
 import {getApps,initializeApp} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
 import {getAuth,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
 import {getFirestore,collection,doc,setDoc,getDoc,getDocs,deleteDoc,query,where,orderBy,limit,Timestamp,serverTimestamp} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
-import {getFunctions,httpsCallable} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js';
+import {consultarSonoGuardIA} from './sonoguard-ai-client.js';
 
 if(!firebaseConfig?.apiKey||!firebaseConfig?.projectId)throw Error('Firebase no configurado');
 const app=getApps().find(a=>a.name==='[DEFAULT]')||initializeApp(firebaseConfig);
-const auth=getAuth(app),db=getFirestore(app),functions=getFunctions(app,'us-central1');
+const auth=getAuth(app),db=getFirestore(app);
 const viewRoot=document.getElementById('sgIaContainer')||document;
 const $=id=>viewRoot.querySelector('#'+(id==='history'&&viewRoot!==document?'sgia-history':id));
 const TRIAL='59175830320',OFFICIAL_REFERENCE='67123590'; // solo referencia municipal de 2022, sin confirmar vigencia
@@ -281,11 +281,16 @@ async function submitReporter(e){
   }catch(err){whatsAppWindow?.close();notify('No se pudo preparar la imagen: '+errorText(err),true);}
   finally{busy(btn,false,'Preparar aviso y abrir WhatsApp');}
 }
+// Solamente se envía la lectura acústica y su escala; no enviamos fotografías,
+// nombres, emails, dirección, fecha ni coordenadas a OpenAI.
+function resumenSeguro(r,question=''){
+  return {db:Number.isFinite(r?.db)?r.db:null,unit:r?.unit==='dB SPL'?'dB SPL':'dBFS',question:String(question||'').slice(0,400)};
+}
 async function aiAnalysis(question=''){
   if(!currentRecord?.id)return notify('Para analizar esta lectura, primero deben guardarse los datos del registro en Firestore.',true);
   if(!Number.isFinite(currentRecord.db))return notify('Este registro no tiene lectura del micrófono para analizar. Prueba de nuevo con el permiso activado.',true);
   const btn=$('analyze');busy(btn,true,'Analizar con IA');
-  try{const result=await httpsCallable(functions,'analyzeSonoGuardEvidence')({recordId:currentRecord.id,question});currentAnalysis=result.data?.analysis||'Sin respuesta';$('analysis-result').textContent=currentAnalysis;$('analysis-result').classList.remove('hidden');}
+  try{const result=await consultarSonoGuardIA(auth,'analyze',resumenSeguro(currentRecord,question));currentAnalysis=result?.answer||'Sin respuesta';$('analysis-result').textContent=currentAnalysis;$('analysis-result').classList.remove('hidden');}
   catch(e){notify('IA no disponible: '+errorText(e),true);}finally{busy(btn,false,'Analizar con IA');}
 }
 async function printReport(){
@@ -315,8 +320,8 @@ function historyCard(data,id){
     if(!Number.isFinite(data.db))return notify('No hay lectura de micrófono para analizar con IA.',true);
     busy(analyze,true,'Explicar con IA');
     try{
-      const result=await httpsCallable(functions,'analyzeSonoGuardEvidence')({recordId:id,question:''});
-      answer.textContent=result.data?.analysis||'Sin respuesta';answer.classList.remove('hidden');
+      const result=await consultarSonoGuardIA(auth,'analyze',resumenSeguro(data,''));
+      answer.textContent=result?.answer||'Sin respuesta';answer.classList.remove('hidden');
     }catch(e){notify('IA no disponible: '+errorText(e),true);}
     finally{busy(analyze,false,'Explicar con IA');}
   });

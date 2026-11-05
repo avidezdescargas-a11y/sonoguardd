@@ -1,3 +1,5 @@
+> **ACTUALIZACIÓN:** para conectar la IA de esta versión SIN Blaze, sigue primero `CONECTAR_SONOGUARD_OPENAI_SIN_BLAZE.md`. Los pasos anteriores sobre Cloud Functions no aplican a esta entrega.
+
 # Publicar SonoGuard IA sin guardar fotos en Firebase
 
 ## 1. GitHub Pages

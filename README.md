@@ -1,17 +1,23 @@
-# SonoGuard IA · Versión gratuita de registros (sin subir fotos)
+# SonoGuard IA — conexión con OpenAI mediante Cloudflare Workers Free
 
-Ampliación integrada de SonoGuard para GitHub Pages. Mantiene `places/{id}`, `settings/global`, analizador, mapa, usuarios y panel único.
+**Esta entrega sustituye Firebase Cloud Functions para el chatbot y el análisis.**
+Mantiene Firebase Authentication y Cloud Firestore para los perfiles, hospitales y registros sin fotos; no activa plan Blaze.
 
-## Qué hace
-- Cámara del navegador en vivo; lectura acústica del micrófono (índice relativo 0–100, **no** dB SPL certificado).
-- Intenta obtener ubicación del navegador (GPS/Wi-Fi/sistema) y muestra acceso a Google Maps. **Si no se obtiene ubicación, la foto se puede tomar pero el registro indica que no está disponible.** No inventa coordenadas.
-- Guarda el JPG en **Descargas** del usuario, nunca sube el archivo a Firebase. Puede volver a descargarse mientras está abierta la captura.
-- WhatsApp al número de prueba 75830320; pide nombre completo solo al compartir; la persona debe **adjuntar manualmente** la foto descargada y pulsar enviar.
-- Historial de **solo datos** privados por UID en la colección `sgEvidence`, con lectura por propietario, detalles y eliminación de cada registro.
-- Consultas de historial sin índice compuesto (filtro `ownerUid` y orden local), para evitar el error de índice mostrado previamente.
-- IA flotante (solo disponible si se configura un backend seguro con funciones y secreto `OPENAI_API_KEY`; **Cloud Functions y OpenAI no forman parte del plan Firebase gratuito Spark**).
+## Empieza aquí
 
-## Instalación
-Lee **GUIA_PUBLICACION_GRATIS.md**. Antes de modificar las reglas de tu proyecto remoto, haz copia de sus reglas actuales, verifica el UID de administrador, ejecuta las pruebas y despliega solo `firestore:rules`. GitHub Pages solo publica `public/`.
+Lee **CONECTAR_SONOGUARD_OPENAI_SIN_BLAZE.md**.
 
-**Importante**: los datos anteriores (hospitales, zonas, configuración y antiguos registros) permanecen en Firebase; esta aplicación no hace migraciones ni borrados masivos. Si ya subiste fotos con una versión anterior, siguen en Storage hasta que las elimines allí de forma separada: eliminarlas del historial de datos no borra archivos antiguos en Storage.
+- `cloudflare-worker/worker.js`: pega el código en un Cloudflare Worker Free.
+- En Cloudflare, configura `OPENAI_API_KEY` como **Secret** y `AUTHORIZED_UID` como variable.
+- Crea un namespace Workers KV y vincúlalo con nombre **AI_QUOTA**: límite aproximado de 8 llamadas por día.
+- `public/sonoguard-ai-config.js`: cambia únicamente la URL del Worker.
+- Publica el contenido completo del proyecto en GitHub; `.github/workflows/pages.yml` sirve `public/`.
+
+## Seguridad y costes
+
+La clave **NUNCA** va en `public/` ni en el repositorio. El Worker valida firma, audiencia y vigencia de tokens Firebase.
+Sólo permite el UID administrador. Modelo `gpt-6-luna`, máximo 240 tokens de salida por consulta y cuota aproximada de 8 consultas/día con KV.
+**KV no es un límite monetario exacto ni transaccional.** Desactiva recarga automática en OpenAI y revisa los límites de consumo.
+La IA no recibe fotos, nombres, emails ni coordenadas a través del análisis de evidencias. No envíes datos personales al chatbot.
+
+El código no modifica ni borra ningún registro remoto de Firestore. Se deben conservar las reglas actuales que ya permiten el historial.

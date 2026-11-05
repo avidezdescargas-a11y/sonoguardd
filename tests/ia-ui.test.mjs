@@ -8,7 +8,7 @@ const chat=readFileSync('public/sonoguard-chat.js','utf8');
 const shell=readFileSync('public/sonoguard-shell.js','utf8');
 const rules=readFileSync('firestore.rules','utf8');
 const config=readFileSync('firebase.json','utf8');
-const functions=readFileSync('functions/index.cjs','utf8');
+const worker=readFileSync('cloudflare-worker/worker.js','utf8');
 test('Cámara real y sesión compartida en un solo panel, sin iframe ni otra pantalla de login',()=>{
   assert.match(html,/id="camera-video"/);
   assert.match(js,/navigator\.mediaDevices\.getUserMedia/);
@@ -60,5 +60,5 @@ test('Reglas no alteran rutas originales y permiten guardar ubicación no dispon
   assert.match(rules,/d\.db == null && d\.unit == 'sin lectura'/);
   assert.doesNotMatch(rules,/photoPath/);
   assert.match(rules,/allow delete: if signedIn\(\) && resource\.data\.ownerUid == request\.auth\.uid/);
-  assert.match(functions,/exports\.chatSonoGuard=onCall/);
+  assert.match(worker,/verifyFirebase/);
 });

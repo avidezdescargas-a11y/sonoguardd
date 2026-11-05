@@ -5,7 +5,7 @@ const html=readFileSync('public/index.html','utf8');
 const standalone=readFileSync('public/sonoguard-ia.html','utf8');
 const js=readFileSync('public/sonoguard-ia.js','utf8');
 const chat=readFileSync('public/sonoguard-chat.js','utf8');
-const fn=readFileSync('functions/index.cjs','utf8');
+const fn=readFileSync('cloudflare-worker/worker.js','utf8');
 const rules=readFileSync('firestore.rules','utf8');
 test('interfaz usa reportes informativos',()=>{
   for(const page of [html,standalone]){
@@ -25,8 +25,8 @@ test('WhatsApp pide revisar zona sin atribuir culpables',()=>{
 });
 test('IA mantiene charla y advierte que no es un trámite',()=>{
   assert.match(chat,/aviso informativo/);
-  assert.match(fn,/avisos informativos/);
-  assert.match(fn,/no implica atención ni visita oficial/);
+  assert.match(fn,/reportes informativos/);
+  assert.match(fn,/no prometas inspecciones ni sanciones/);
 });
 test('se preservan las colecciones originales',()=>{
   assert.match(rules,/match \/places\/\{id\}/);
