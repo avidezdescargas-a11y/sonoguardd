@@ -18,7 +18,10 @@ test('IA y cámara comparten inicio de sesión del panel original',()=>{
   assert.doesNotMatch(html,/id="login-form"/);
   assert.match(code,/onAuthStateChanged\(auth,/);
   assert.match(shell,/sonoguardIaLink/);
-  assert.match(index,/id="sgIaFrame"/);
+  assert.match(index,/id="sgIaContainer"/);
+  assert.match(index,/id="camera-video"/);
+  assert.doesNotMatch(index,/<iframe/i);
+  assert.match(shell,/dashboardMain.hidden=enabled/);
 });
 test('Captura guarda inmediatamente sin preguntar nombre, muestra estado',()=>{
   assert.match(code,/await persistEvidence\(record,blob\)/);

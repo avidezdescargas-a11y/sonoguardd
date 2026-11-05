@@ -1,3 +1,7 @@
+# ATENCIÓN: CORRECCIÓN DEL PANEL Y ESCALA POSITIVA
+
+Esta versión elimina definitivamente el iframe que ocasionaba paneles repetidos. Se integra la cámara en el mismo documento y se muestra un índice positivo 0–100 cuando no hay calibración (no es dB SPL). No debes volver a subir el ZIP de sensores anterior; usa esta versión. La base existente no se modifica al subir los archivos a GitHub.
+
 # Cómo subir SonoGuard IA directamente a GitHub Pages
 
 **Esta versión guarda las fotos automáticamente en Firebase y agrega un chat flotante.** No se ha desplegado en tu Firebase real ni en tu GitHub. Conserva tu base de datos actual: las colecciones `places` y `settings/global` son las mismas.

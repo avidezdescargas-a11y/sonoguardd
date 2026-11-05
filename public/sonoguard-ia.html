@@ -10,7 +10,7 @@
 <body>
   <header class="topbar"><div class="brand"><span class="brand-mark">◉</span><div><strong>SonoGuard <span>IA</span></strong><small>Cámara en vivo · Proyecto ciudadano La Paz</small></div></div><nav><a href="./index.html">← Panel principal</a></nav></header>
   <main>
-    <div id="notice" class="notice">PROYECTO ACADÉMICO DE PRUEBA · No presenta denuncias oficiales. La medición del micrófono del navegador es digital (dBFS), no un nivel ambiental certificado.</div>
+    <div id="notice" class="notice">PROYECTO ACADÉMICO DE PRUEBA · No presenta denuncias oficiales. Sin calibración se muestra un índice digital relativo de 0 a 100, no un nivel ambiental certificado.</div>
     <section id="signin" class="panel narrow hidden"><h1>Abre SonoGuard con tu sesión</h1><p>Este módulo comparte la sesión de Firebase del panel principal. No necesitas iniciar sesión una segunda vez.</p><a class="button-link" href="./index.html">Ir a SonoGuard e iniciar sesión</a></section>
     <div id="workspace" class="hidden">
       <div class="heading"><div><span class="eyebrow">Integrado en tu cuenta actual</span><h1>Evidencia acústica en vivo</h1><p>Abre la cámara y SonoGuard activará el micrófono y solicitará el GPS. Cuando ambos estén listos, toma la foto: se guardará con los datos automáticos en tu historial privado de Firebase. El nombre se solicita solo al preparar WhatsApp.</p></div><span id="user-tag" class="tag">Sesión activa</span></div>
@@ -22,7 +22,7 @@
             <div class="camera-empty" id="camera-empty"><span class="camera-symbol">📷</span><strong>Activa la cámara para comenzar</strong><small>Solo se captura una foto cuando pulsas «Tomar foto ahora».</small></div>
             <div class="camera-hud" aria-live="off">
               <div class="hud-top"><span>SONOGUARD IA · EN VIVO</span><span id="hud-time">--:--:--</span></div>
-              <div class="hud-bottom"><div><strong id="hud-db">— dBFS</strong><small id="hud-source">Micrófono digital · no certificado</small></div><p id="hud-place">Ubicación GPS: esperando…</p></div>
+              <div class="hud-bottom"><div><strong id="hud-db">— índice /100</strong><small id="hud-source">Micrófono digital · no certificado</small></div><p id="hud-place">Ubicación GPS: esperando…</p></div>
             </div>
           </div>
           <div class="actions"><button id="start-camera" class="primary" type="button">📷 Abrir cámara y sensores</button><button id="stop-camera" class="ghost" type="button" disabled>Detener cámara</button></div>
@@ -31,7 +31,7 @@
         </section>
         <section class="panel" aria-labelledby="sensors-title">
           <h2 id="sensors-title">2. Datos automáticos del dispositivo</h2>
-          <div class="reading"><div><span class="label-small">Micrófono en vivo</span><div><strong id="live-db">—</strong> <span>dBFS</span></div><small>Lectura digital. No equivale a dB SPL certificado.</small></div></div>
+          <div class="reading"><div><span class="label-small">Micrófono en vivo</span><div><strong id="live-db">—</strong> <span>índice /100</span></div><small>Índice positivo de nivel digital, sin equivalencia a dB SPL certificado.</small></div></div>
           <p id="mic-status" class="muted small" role="status">Micrófono pendiente.</p>
           <div class="gps-box"><strong>📍 Ubicación GPS automática</strong><p id="gps-status" class="muted small" role="status">Esperando posición del dispositivo…</p>
             <a id="maps-link" class="maps-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Ver punto en Google Maps ↗</a>
