@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1726">
+  <meta name="description" content="SonoGuard IA: historial y evidencia acústica académica en La Paz, Bolivia.">
+  <title>SonoGuard IA · Evidencia acústica</title>
+  <link rel="stylesheet" href="./sonoguard-ia.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">◉</span><div><strong>SonoGuard <span>IA</span></strong><small>Laboratorio ciudadano de ruido · La Paz</small></div></div>
+    <nav><a href="./index.html">← Volver a SonoGuard</a> <button id="logout" class="ghost hidden" type="button">Cerrar sesión</button></nav>
+  </header>
+  <main>
+    <div id="notice" class="notice">Proyecto académico de prueba. No recibe ni presenta denuncias oficiales, ni certifica mediciones acústicas.</div>
+    <section id="signin" class="panel narrow">
+      <div class="section-title"><span class="eyebrow">Acceso protegido</span><h1>Ingresar a SonoGuard IA</h1><p>Usa tu cuenta de Firebase de SonoGuard; los datos permanecen asociados a tu usuario.</p></div>
+      <form id="login-form" class="formgrid">
+        <label>Correo electrónico<input type="email" id="email" autocomplete="email" required></label>
+        <label>Contraseña<input type="password" id="password" autocomplete="current-password" required minlength="6"></label>
+        <button class="primary" type="submit">Ingresar</button>
+      </form>
+      <p class="muted small">Para crear una cuenta, utiliza la pantalla de registro de SonoGuard. Nunca se solicita tu API Key aquí.</p>
+    </section>
+    <div id="workspace" class="hidden">
+      <div class="heading"><div><span class="eyebrow">Módulo adicional · no altera el panel original</span><h1>Evidencia acústica inteligente</h1><p>Fotografía, nivel de sonido, nombre, hora y lugar; historial en la nube y envío de prueba.</p></div><span id="user-tag" class="tag">Conectado</span></div>
+      <div class="columns">
+        <section class="panel" aria-labelledby="profile-title">
+          <h2 id="profile-title">1. Perfil del responsable</h2>
+          <form id="profile-form" class="formgrid">
+            <label>Nombre completo <span class="required">*</span><input id="full-name" maxlength="100" autocomplete="name" required placeholder="Nombre y apellidos"></label>
+            <label>Institución / organización (opcional)<input id="organization" maxlength="100" placeholder="Universidad, junta vecinal..."></label>
+            <label>Tipo de usuario<select id="profile-type"><option value="ciudadano">Ciudadano/a</option><option value="estudiante">Estudiante</option><option value="tecnico">Técnico/a</option><option value="institucion">Institución</option></select></label>
+            <label class="check"><input id="profile-consent" type="checkbox" required><span>Autorizo guardar mi perfil, fotografías y mediciones en Firebase. Conozco que el administrador puede consultar los metadatos de los registros y que puedo eliminarlos.</span></label>
+            <button class="secondary" type="submit">Guardar mi perfil</button>
+          </form>
+          <div class="microhint">Tu nombre se coloca en la fotografía solo si eliges «Nombre completo visible» al crearla. Puedes usar la modalidad protegida si prefieres compartirla públicamente.</div>
+        </section>
+        <section class="panel" aria-labelledby="capture-title">
+          <h2 id="capture-title">2. Capturar evidencia</h2>
+          <div class="formgrid">
+            <label>Fuente de medición<select id="reading-type"><option value="mic">Micrófono de este navegador (dBFS digitales)</option><option value="declared">Lectura externa o calibrada declarada (dB SPL)</option></select></label>
+            <div id="mic-area" class="reading">
+              <div><span class="label-small">Lectura actual</span><div><strong id="live-db">—</strong> <span>dBFS</span></div><small>No equivale a dB SPL ni prueba una infracción.</small></div>
+              <button id="mic-toggle" type="button" class="secondary">Iniciar micrófono</button>
+            </div>
+            <label id="declared-area" class="hidden">Nivel informado en dB SPL<input id="declared-db" type="number" min="0" max="160" step="0.1" placeholder="Ej. 72.5"><small>Indica una lectura obtenida con otro instrumento. No se verifica automáticamente.</small></label>
+            <label>Fotografía del lugar <span class="required">*</span><input id="photo" type="file" accept="image/jpeg,image/png,image/webp,image/*" capture="environment" required><small>En un celular puedes abrir la cámara. Máximo 10 MB antes de comprimir.</small></label>
+            <label>Zona o dirección aproximada <span class="required">*</span><input id="zone" maxlength="120" placeholder="Ej. Miraflores, La Paz" required></label>
+            <label>Lugar registrado en SonoGuard (opcional, solo lectura)<select id="known-place"><option value="">Sin seleccionar</option></select></label>
+            <label>Posible fuente de ruido (no verificada)<input id="possible-source" maxlength="120" placeholder="Ej. música desde un local"></label>
+            <div class="location-row"><button id="get-location" type="button" class="secondary">📍 Usar mi ubicación actual</button><button id="clear-location" type="button" class="ghost">Quitar coordenadas</button></div>
+            <div id="coords" class="muted small">Sin coordenadas. Puedes continuar con ubicación escrita.</div>
+            <label>Nombre visible en la fotografía<select id="photo-name-mode"><option value="full">Nombre completo del denunciante</option><option value="protected">Nombre protegido (iniciales)</option></select></label>
+            <label class="check"><input type="checkbox" id="share-consent" required><span>Confirmo que tengo derecho a usar esta foto y acepto que contiene los datos seleccionados. Evitaré publicar rostros, matrículas o domicilios privados.</span></label>
+            <button id="create-evidence" class="primary" type="button">Crear imagen y guardar en historial</button>
+          </div>
+        </section>
+      </div>
+      <section id="preview-panel" class="panel hidden">
+        <h2>3. Fotografía de evidencia</h2>
+        <p class="muted">Al tocar la imagen se abre WhatsApp con el número de <strong>prueba 75830320</strong>. La imagen no se adjunta automáticamente: descárgala y adjúntala tú si lo deseas.</p>
+        <a id="preview-link" target="_blank" rel="noopener noreferrer" title="Abrir WhatsApp de prueba"><img id="preview-image" class="photo-preview" alt="Evidencia con nombre, medición, fecha y ubicación"></a>
+        <div class="actions"><button id="download-image" class="secondary" type="button">Descargar imagen JPG</button><button id="open-trial" class="primary" type="button">Abrir contacto de prueba</button><button id="print-report" type="button" class="ghost">Guardar reporte como PDF</button><button id="analyze" class="secondary" type="button">Analizar con IA</button></div>
+        <div class="question-box"><label>Pregunta al asistente IA sobre esta medición (evita escribir datos personales)<input id="ai-question" type="text" maxlength="180" placeholder="Ej. ¿Qué recomendaciones puedo seguir?"></label><button id="ask-ai" class="secondary" type="button">Preguntar a SonoGuard IA</button></div>
+        <div id="analysis-result" class="ai-result hidden" aria-live="polite"></div>
+        <div class="trial-info"><strong>Contacto de prueba: 75830320</strong><div>Número municipal publicado en ficha de 2022: <strong>67123590</strong> (vigencia sin confirmar). <a href="https://lapaz.bo/atencion-a-denuncias-2/" target="_blank" rel="noopener noreferrer">Consultar información oficial</a>.</div><small>SIMULACIÓN ACADÉMICA · NO SE ENVÍA UNA DENUNCIA OFICIAL · LA MEDICIÓN NO ES CERTIFICADA.</small></div>
+      </section>
+      <section class="panel">
+        <div class="section-heading"><div><h2>4. Historial en Firebase</h2><p class="muted">Los registros se guardan en una colección nueva. Los hospitales y demás lugares del sistema original no se modifican.</p></div><button id="refresh-history" class="secondary" type="button">Actualizar</button></div>
+        <div id="history" class="history-grid"><p class="muted">Todavía no hay registros.</p></div>
+      </section>
+      <section class="panel">
+        <h2>5. Tendencias por tipo de medición</h2>
+        <p class="muted">Resumen calculado en tu navegador a partir de tus últimos 50 registros. Se separan dBFS y dB SPL; no se mezclan escalas ni se determina una infracción legal.</p>
+        <div id="trends" class="trend-grid"><p class="muted">Guarda varias mediciones para mostrar tendencias.</p></div>
+      </section>
+      <section id="admin-section" class="panel hidden"><h2>Vista administrativa · últimas evidencias</h2><p class="muted">La administración autorizada puede consultar datos del historial. Las fotos de otros usuarios se mantienen privadas.</p><div id="admin-list"></div></section>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </main>
+  <footer>SONOGUARD IA · Prototipo académico para La Paz, Bolivia · Nunca reemplaza una inspección o medición oficial.</footer>
+  <script type="module" src="./sonoguard-ia.js"></script>
+</body>
+</html>
