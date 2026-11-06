@@ -121,13 +121,6 @@ async function submitChat(event) {
 
   const waiting = addMessage(tr('Pensando…'), 'system');
 
-  try {
-    if (user.uid !== appConfig.adminUid) {
-      throw Error(
-        'La IA se limita al administrador para proteger los $5 de saldo.'
-      );
-    }
-
     const result = await consultarSonoGuardIA(
       auth,
       'chat',
