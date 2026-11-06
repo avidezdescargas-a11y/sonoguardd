@@ -1,3 +1,4 @@
+import {tr,getLanguage} from './sonoguard-i18n.js';
 /** SonoGuard IA: chat flotante sobre el panel principal y la cámara, misma sesión Firebase. */
 import {firebaseConfig,appConfig} from './firebase-config.js';
 import {consultarSonoGuardIA} from './sonoguard-ai-client.js';
@@ -19,7 +20,7 @@ function welcome(){
   const quick=document.createElement('div');quick.className='sgChatQuick';
   for(const question of ['¿Qué significa dBFS?','¿Cómo tomo una evidencia?','¿Cómo funciona el historial?']){
     const btn=document.createElement('button');btn.type='button';btn.textContent=question;
-    btn.addEventListener('click',()=>{input.value=question;input.focus();});quick.append(btn);
+    btn.addEventListener('click',()=>{input.value=btn.textContent;input.focus();});quick.append(btn);
   }
   messages.append(quick);
 }
@@ -57,3 +58,5 @@ onAuthStateChanged(auth,u=>{
   if(!u){panel.hidden=true;fab.setAttribute('aria-expanded','false');history=[];messages.replaceChildren();}
   else if(changed)welcome();
 });
+
+document.addEventListener('sonoguard:language-change',()=>{ if(!history.length)welcome(); });

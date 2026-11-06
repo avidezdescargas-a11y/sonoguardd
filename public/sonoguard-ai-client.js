@@ -1,3 +1,4 @@
+import {getLanguage} from './sonoguard-i18n.js';
 /** Cliente del Worker. Usa tu sesión Firebase actual; jamás transmite la clave OpenAI. */
 import {SONOGUARD_WORKER_URL} from './sonoguard-ai-config.js';
 export async function consultarSonoGuardIA(auth,mode,payload){
@@ -12,7 +13,7 @@ export async function consultarSonoGuardIA(auth,mode,payload){
   try{
     response=await fetch(url+'/api/ai',{
       method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body:JSON.stringify({mode,...payload}),
+      body:JSON.stringify({mode,...payload,language:getLanguage()}),
     });
   }catch{throw Error('No fue posible conectar con Cloudflare. Comprueba la URL del Worker y la conexión.');}
   const json=await response.json().catch(()=>({}));

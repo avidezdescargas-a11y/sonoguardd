@@ -3,12 +3,11 @@
  * La clave OpenAI vive SOLO en el secreto OPENAI_API_KEY de Cloudflare.
  * Seguridad: verifica criptográficamente el ID token de Firebase y restringe
  * las llamadas al UID autorizado antes de contactar a OpenAI.
- * Cuota: requiere binding KV 'AI_QUOTA'; 8 solicitudes/día (aproximado).
+ * Sin contador diario de preguntas. OpenAI seguirá cobrando por tokens usados.
  */
 const PROJECT_ID = 'sonoguard-da942';
 const ALLOWED_ORIGIN = 'https://avidezdescargas-a11y.github.io';
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
-const MAX_CALLS_PER_DAY = 8;
 let jwks = null;
 let jwksExpires = 0;
 function cors(origin){return {
@@ -50,16 +49,6 @@ async function verifyFirebase(token){
   if(!await crypto.subtle.verify('RSASSA-PKCS1-v1_5',publicKey,decodeBase64Url(parts[2]),data))throw Error('Firma inválida');
   return claims.sub;
 }
-async function enforceQuota(kv,uid){
-  // KV es eventualmente consistente; es una restricción prudente, NO un techo monetario garantizado.
-  if(!kv)throw Error('Falta el binding de cuota AI_QUOTA');
-  const day=new Date().toISOString().slice(0,10);
-  const key=`sonoguard-ai:${uid}:${day}`;
-  const n=Number(await kv.get(key)||0);
-  if(!Number.isFinite(n)||n>=MAX_CALLS_PER_DAY)return false;
-  await kv.put(key,String(n+1),{expirationTtl:172800});
-  return true;
-}
 const INSTRUCTIONS = `Eres SonoGuard IA, un asistente ciudadano sobre mediciones acústicas en La Paz, Bolivia.
 Responde en español amable, de manera concisa (máximo 130 palabras).
 Explica mediciones digitales y contaminación acústica con cuidado.
@@ -83,7 +72,7 @@ async function answerWithOpenAI(env,body){
   } else throw Error('Modo desconocido');
   const api=await fetch('https://api.openai.com/v1/responses',{
     method:'POST',headers:{'Authorization':`Bearer ${env.OPENAI_API_KEY}`,'Content-Type':'application/json'},
-    body:JSON.stringify({model:'gpt-6-luna',reasoning:{effort:'none'},instructions:INSTRUCTIONS,input,
+    body:JSON.stringify({model:'gpt-6-luna',reasoning:{effort:'none'},instructions:(body.language==='en' ? 'You are SonoGuard AI, a citizen assistant for acoustic measurements in La Paz, Bolivia. Answer entirely in English and keep responses under 130 words. Explain acoustic readings and noise carefully: dBFS does not equal dB SPL; phone readings are not certified, and do not establish a legal violation. Do not blame anyone, promise inspections or sanctions, invent official laws/contacts, or ask for personal details and precise locations.' : INSTRUCTIONS),input,
       max_output_tokens:240,store:false})
   });
   if(!api.ok){if(api.status===429)return {error:'OpenAI alcanzó una cuota o límite. Revisa el saldo.',status:429};
@@ -98,11 +87,11 @@ export default {async fetch(request,env){
   const origin=request.headers.get('origin')||'';
   if(request.method==='GET'&&new URL(request.url).pathname==='/health')
     return json({ok:true,service:'SonoGuard IA',keyConfigured:!!env.OPENAI_API_KEY,
-      uidConfigured:!!env.AUTHORIZED_UID,quotaConfigured:!!env.AI_QUOTA});
+      uidConfigured:!!env.AUTHORIZED_UID,quotaMode:'sin_limite_diario'});
   if(origin!==ALLOWED_ORIGIN)return fail('Origen no autorizado.',403,origin);
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});
   if(request.method!=='POST'||new URL(request.url).pathname!=='/api/ai')return fail('Ruta no encontrada.',404,origin);
-  if(!env.OPENAI_API_KEY||!env.AUTHORIZED_UID||!env.AI_QUOTA)return fail('Worker sin configurar. Revisa el secreto, UID y KV.',503,origin);
+  if(!env.OPENAI_API_KEY||!env.AUTHORIZED_UID)return fail('Worker sin configurar. Revisa el secreto OPENAI_API_KEY y el UID autorizado.',503,origin);
   const auth=request.headers.get('authorization')||'';
   if(!auth.startsWith('Bearer '))return fail('Abre sesión en SonoGuard.',401,origin);
   let uid;
@@ -115,7 +104,6 @@ export default {async fetch(request,env){
   if(JSON.stringify(body).length>4000)return fail('Consulta demasiado larga.',413,origin);
   if(!body||!['chat','analyze'].includes(body.mode))return fail('Solicitud inválida.',400,origin);
   try{
-    if(!await enforceQuota(env.AI_QUOTA,uid))return fail('Has alcanzado las 8 consultas de IA de hoy. Vuelve mañana.',429,origin);
     const reply=await answerWithOpenAI(env,body);
     return reply.error?fail(reply.error,reply.status,origin):json({answer:reply.answer},200,origin);
   }catch(err){

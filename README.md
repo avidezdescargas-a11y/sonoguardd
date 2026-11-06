@@ -1,23 +1,18 @@
-# SonoGuard IA — conexión con OpenAI mediante Cloudflare Workers Free
+# SonoGuard IA · Español / English
 
-**Esta entrega sustituye Firebase Cloud Functions para el chatbot y el análisis.**
-Mantiene Firebase Authentication y Cloud Firestore para los perfiles, hospitales y registros sin fotos; no activa plan Blaze.
+Versión bilingüe de SonoGuard con **botón 🌐 EN / 🌐 ES**, incluida la pantalla de acceso, el monitor acústico, el mapa, la cámara, el historial sin fotos, el asistente flotante y los informes. El idioma se recuerda en este navegador. No requiere una API de traducción.
 
-## Empieza aquí
+**Instrucciones paso a paso:** [`ACTIVAR_INGLES_EN_GITHUB.md`](ACTIVAR_INGLES_EN_GITHUB.md).
 
-Lee **CONECTAR_SONOGUARD_OPENAI_SIN_BLAZE.md**.
+## Publicación
 
-- `cloudflare-worker/worker.js`: pega el código en un Cloudflare Worker Free.
-- En Cloudflare, configura `OPENAI_API_KEY` como **Secret** y `AUTHORIZED_UID` como variable.
-- Crea un namespace Workers KV y vincúlalo con nombre **AI_QUOTA**: límite aproximado de 8 llamadas por día.
-- `public/sonoguard-ai-config.js`: cambia únicamente la URL del Worker.
-- Publica el contenido completo del proyecto en GitHub; `.github/workflows/pages.yml` sirve `public/`.
+- GitHub Pages publica la carpeta `public/` mediante `.github/workflows/pages.yml`.
+- El enlace público a Cloudflare ya está configurado en `public/sonoguard-ai-config.js`.
+- Para que las **respuestas generadas por la IA** estén en inglés al escoger EN, actualiza también `cloudflare-worker/worker.js` en Cloudflare **sin tocar los secretos**.
+- El Worker no incluye un límite diario de consultas. OpenAI cobra por uso; desactiva las recargas automáticas si quieres evitar compras de saldo adicionales.
 
-## Seguridad y costes
+## Integridad del proyecto
 
-La clave **NUNCA** va en `public/` ni en el repositorio. El Worker valida firma, audiencia y vigencia de tokens Firebase.
-Sólo permite el UID administrador. Modelo `gpt-6-luna`, máximo 240 tokens de salida por consulta y cuota aproximada de 8 consultas/día con KV.
-**KV no es un límite monetario exacto ni transaccional.** Desactiva recarga automática en OpenAI y revisa los límites de consumo.
-La IA no recibe fotos, nombres, emails ni coordenadas a través del análisis de evidencias. No envíes datos personales al chatbot.
+Este paquete conserva el flujo de monitoreo original, los lugares de Firestore (`places`), `settings/global`, perfiles e historial de metadatos. No elimina datos ni sube fotografías a Firebase. Las traducciones afectan exclusivamente a la presentación, no a los valores acústicos ni a los identificadores y datos guardados. Los nombres y contenidos aportados por los usuarios no se traducen automáticamente.
 
-El código no modifica ni borra ningún registro remoto de Firestore. Se deben conservar las reglas actuales que ya permiten el historial.
+Pruebas: `npm run check`, `npm run check:ia`, `npm run check:solo-datos`. Para reglas reales de Firestore, aplica el procedimiento de respaldos y comprobaciones; esta actualización de idioma **no necesita cambios de reglas**.

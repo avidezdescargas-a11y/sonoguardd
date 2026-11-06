@@ -1,3 +1,4 @@
+import {tr,getLanguage} from './sonoguard-i18n.js';
 /** SonoGuard IA: cámara EN VIVO, sesión compartida, colecciones aditivas. */
 import {firebaseConfig,appConfig} from './firebase-config.js';
 import {positiveLabel,positiveValue,positiveUnit} from './audio-display.js';
@@ -28,7 +29,7 @@ const displayRecord=r=>Number.isFinite(r?.db)?positiveLabel(r.db,r.unit):'Sin le
 const displayMic=()=>lastReading===null?'—':positiveLabel(lastReading,'dBFS');
 const recordDate=r=>r?.capturedAt?.toDate?r.capturedAt.toDate():new Date();
 function make(type,cls,txt){const a=document.createElement(type);if(cls)a.className=cls;if(txt!==undefined)a.textContent=txt;return a;}
-function trialLink(r){const text=`SONOGUARD IA · AVISO CIUDADANO INFORMATIVO (PRUEBA).\nHola, quisiera informar que se percibe un problema de ruido en esta zona y solicitar amablemente que se revise la situación y, si corresponde, se programe una visita de verificación.\nPersona que informa: ${r.ownerName||''}\nPunto donde se realizó el registro: ${r.zone}.\nLectura orientativa del micrófono: ${displayRecord(r)}.\nFecha y hora (Bolivia): ${formatDate(recordDate(r))}.\nUbicación en Google Maps: ${r.lat!==null&&r.lng!==null?googleMapsUrl(r.lat,r.lng):'no disponible'}.\nPrecisión GPS reportada: ±${r.gpsAccuracyM??'?'} m.\nLa fotografía se adjunta manualmente. No se atribuye el ruido a una persona o establecimiento.\nEste mensaje se dirige a un número de PRUEBA: no se envía a una autoridad ni garantiza una visita.`;return `https://wa.me/${TRIAL}?text=${encodeURIComponent(text)}`;}
+function trialLink(r){if(getLanguage()==='en'){const text=`SONOGUARD AI · COMMUNITY INFORMATION REPORT (TEST).\nHello, I would like to report a noise problem in this area and kindly request a review of the situation and, if appropriate, a site visit.\nPerson reporting: ${r.ownerName||''}\nRecording location: ${r.zone}.\nIndicative microphone reading: ${displayRecord(r)}.\nDate and time (Bolivia): ${formatDate(recordDate(r))}.\nGoogle Maps: ${r.lat!==null&&r.lng!==null?googleMapsUrl(r.lat,r.lng):'unavailable'}.\nReported GPS accuracy: ±${r.gpsAccuracyM??'?'} m.\nThe downloaded photo must be attached manually. No person or business is blamed.\nThis message goes to a TEST number, not a public authority, and does not guarantee a visit.`;return `https://wa.me/${TRIAL}?text=${encodeURIComponent(text)}`;}const text=`SONOGUARD IA · AVISO CIUDADANO INFORMATIVO (PRUEBA).\nHola, quisiera informar que se percibe un problema de ruido en esta zona y solicitar amablemente que se revise la situación y, si corresponde, se programe una visita de verificación.\nPersona que informa: ${r.ownerName||''}\nPunto donde se realizó el registro: ${r.zone}.\nLectura orientativa del micrófono: ${displayRecord(r)}.\nFecha y hora (Bolivia): ${formatDate(recordDate(r))}.\nUbicación en Google Maps: ${r.lat!==null&&r.lng!==null?googleMapsUrl(r.lat,r.lng):'no disponible'}.\nPrecisión GPS reportada: ±${r.gpsAccuracyM??'?'} m.\nLa fotografía se adjunta manualmente. No se atribuye el ruido a una persona o establecimiento.\nEste mensaje se dirige a un número de PRUEBA: no se envía a una autoridad ni garantiza una visita.`;return `https://wa.me/${TRIAL}?text=${encodeURIComponent(text)}`;}
 
 async function loadProfile(){const snap=await getDoc(doc(db,'sgProfiles',user.uid));profile=snap.exists()?snap.data():null;}
 async function loadPlaces(){
@@ -189,15 +190,15 @@ function composePhoto(r,sourceCanvas=rawPhotoCanvas){
   const c=canvas.getContext('2d');if(!c)throw Error('No se pudo crear la imagen.');c.fillStyle='#0b2433';c.fillRect(0,0,canvas.width,canvas.height);c.drawImage(sourceCanvas,0,0,width,imageHeight);
   c.fillStyle='rgba(7,26,40,.94)';c.fillRect(0,imageHeight,width,footerHeight);
   const left=35,available=width-70;
-  c.fillStyle='#72f2d7';c.font='bold 32px system-ui';c.fillText('SONOGUARD IA · REPORTE INFORMATIVO',left,imageHeight+50);
+  c.fillStyle='#72f2d7';c.font='bold 32px system-ui';c.fillText(tr('SONOGUARD IA · REPORTE INFORMATIVO'),left,imageHeight+50);
   c.fillStyle='#fff';c.font='bold 56px system-ui';c.fillText(`${displayRecord(r)}`,left,imageHeight+118);
   c.font='26px system-ui';let y=imageHeight+165;
-  for(const line of [`Fecha y hora (Bolivia): ${formatDate(recordDate(r))}`,`Lugar GPS: ${r.zone}`,`Persona que informa: ${r.ownerName||'No proporcionado'}`]){
+  for(const line of [tr(`Fecha y hora (Bolivia): ${formatDate(recordDate(r))}`),tr(`Lugar GPS: ${r.zone}`),tr(`Persona que informa: ${r.ownerName||'No proporcionado'}`)]){
     for(const segment of wrapLines(c,line,available,2)){c.fillText(segment,left,y);y+=32;}y+=2;
   }
-  if(r.lat!==null&&r.lng!==null){c.font='22px system-ui';c.fillText(`GPS aprox.: ${r.lat}, ${r.lng} · precisión ±${r.gpsAccuracyM??'?'} m`,left,Math.min(y+4,imageHeight+330));}
-  c.font='19px system-ui';c.fillStyle='#d9e4eb';c.fillText(`Contacto de PRUEBA: 75830320 · Referencia municipal 2022: ${OFFICIAL_REFERENCE} (sin confirmar)`,left,imageHeight+370);
-  c.fillStyle='#ffd39d';c.font='bold 18px system-ui';c.fillText('REGISTRO INFORMATIVO DE PRUEBA · NO ES MEDICIÓN CERTIFICADA',left,imageHeight+406);
+  if(r.lat!==null&&r.lng!==null){c.font='22px system-ui';c.fillText(tr(`GPS aprox.: ${r.lat}, ${r.lng} · precisión ±${r.gpsAccuracyM??'?'} m`),left,Math.min(y+4,imageHeight+330));}
+  c.font='19px system-ui';c.fillStyle='#d9e4eb';c.fillText(tr(`Contacto de PRUEBA: 75830320 · Referencia municipal 2022: ${OFFICIAL_REFERENCE} (sin confirmar)`),left,imageHeight+370);
+  c.fillStyle='#ffd39d';c.font='bold 18px system-ui';c.fillText(tr('REGISTRO INFORMATIVO DE PRUEBA · NO ES MEDICIÓN CERTIFICADA'),left,imageHeight+406);
   return canvas;
 }
 function canvasJpeg(canvas){return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('No se pudo codificar la imagen.')),'image/jpeg',.83));}
@@ -297,7 +298,7 @@ async function printReport(){
   if(!currentRecord||!currentImageBlob)return;
   const popup=window.open('','_blank');if(!popup)return notify('Habilita ventanas emergentes para imprimir.',true);
   const r=currentRecord;const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-  const reader=new FileReader();reader.onload=()=>{popup.document.open();popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte SonoGuard</title><style>body{font:16px system-ui;color:#142632;max-width:880px;margin:auto;padding:25px}img{width:100%;object-fit:contain}.warn{border:1px solid #777;padding:15px}button{padding:12px}@media print{button{display:none}}</style></head><body><h1>SonoGuard IA · Evidencia de prueba</h1><img alt="Fotografía de medición" src="${reader.result}"><p><b>Nombre:</b> ${escape(r.ownerName||'No declarado')}<br><b>Lectura:</b> ${escape(displayRecord(r))}<br><b>Lugar:</b> ${escape(r.zone)}<br><b>Fecha y hora:</b> ${escape(formatDate(recordDate(r)))}</p>${currentAnalysis?`<p>${escape(currentAnalysis)}</p>`:''}<p class="warn">Registro ciudadano informativo de prueba. Medición no certificada. No activa visitas ni trámites oficiales. Contacto de prueba 75830320; referencia municipal publicada en 2022 ${OFFICIAL_REFERENCE} (vigencia sin confirmar).</p><button onclick="window.print()">Imprimir / Guardar PDF</button></body></html>`);popup.document.close();};reader.readAsDataURL(currentImageBlob);
+  const reader=new FileReader();reader.onload=()=>{popup.document.open();popup.document.write(`<!doctype html><html lang="${getLanguage()}"><head><meta charset="utf-8"><title>${tr('Reporte SonoGuard')}</title><style>body{font:16px system-ui;color:#142632;max-width:880px;margin:auto;padding:25px}img{width:100%;object-fit:contain}.warn{border:1px solid #777;padding:15px}button{padding:12px}@media print{button{display:none}}</style></head><body><h1>${tr('SonoGuard IA · Evidencia de prueba')}</h1><img alt="${tr('Fotografía de medición')}" src="${reader.result}"><p><b>${tr('Nombre:')}</b> ${escape(r.ownerName||'No declarado')}<br><b>${tr('Lectura:')}</b> ${escape(displayRecord(r))}<br><b>${tr('Lugar:')}</b> ${escape(r.zone)}<br><b>${tr('Fecha y hora:')}</b> ${escape(formatDate(recordDate(r)))}</p>${currentAnalysis?`<p>${escape(currentAnalysis)}</p>`:''}<p class="warn">${getLanguage()==='en'?'Informational test record. Uncertified measurement. Does not initiate official visits or proceedings. Test contact: 75830320; 2022 published municipal reference: '+OFFICIAL_REFERENCE+' (unverified).':'Registro ciudadano informativo de prueba. Medición no certificada. No activa visitas ni trámites oficiales. Contacto de prueba 75830320; referencia municipal publicada en 2022 '+OFFICIAL_REFERENCE+' (vigencia sin confirmar).'}</p><button onclick="window.print()">${tr('Imprimir / Guardar PDF')}</button></body></html>`);popup.document.close();};reader.readAsDataURL(currentImageBlob);
 }
 function historyCard(data,id){
   const card=make('article','history-card');
@@ -326,7 +327,7 @@ function historyCard(data,id){
     finally{busy(analyze,false,'Explicar con IA');}
   });
   del.addEventListener('click',async()=>{
-    if(!confirm('¿Eliminar solo este registro de datos de Firebase? No afecta hospitales ni elimina fotos de tu celular.'))return;
+    if(!confirm(tr('¿Eliminar solo este registro de datos de Firebase? No afecta hospitales ni elimina fotos de tu celular.')))return;
     del.disabled=true;
     try{
       await deleteDoc(doc(db,'sgEvidence',id));
