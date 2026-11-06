@@ -1,12 +1,13 @@
 
 import { tr, getLanguage } from './sonoguard-i18n.js';
-import { firebaseConfig, appConfig } from './firebase-config.js';
+import { firebaseConfig } from './firebase-config.js';
 import { consultarSonoGuardIA } from './sonoguard-ai-client.js';
 import { getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
 
 const app = getApps().find(a => a.name === '[DEFAULT]') ||
   initializeApp(firebaseConfig);
+
 const auth = getAuth(app);
 const $ = id => document.getElementById(id);
 
@@ -23,18 +24,29 @@ let working = false;
 let history = [];
 let conversationVersion = 0;
 
+// ======================================
+// AGREGAR MENSAJES
+// ======================================
+
 function addMessage(message, kind = 'assistant') {
   const el = document.createElement('div');
+
   el.className = 'sgChatBubble ' + (
     kind === 'user' ? 'sgChatUser' :
     kind === 'system' ? 'sgChatSystem' :
     'sgChatAssistant'
   );
+
   el.textContent = message;
   messages.append(el);
   messages.scrollTop = messages.scrollHeight;
+
   return el;
 }
+
+// ======================================
+// BIENVENIDA BILINGUE
+// ======================================
 
 function welcome() {
   conversationVersion++;
@@ -54,6 +66,7 @@ function welcome() {
     '¿Cómo funciona el historial?'
   ]) {
     const btn = document.createElement('button');
+
     btn.type = 'button';
     btn.textContent = tr(question);
 
@@ -68,19 +81,34 @@ function welcome() {
   messages.append(quick);
 }
 
+// ======================================
+// ABRIR Y CERRAR CHAT
+// ======================================
+
 function openChat(open) {
   if (!user) return;
 
   panel.hidden = !open;
-  fab.setAttribute('aria-expanded', String(open));
+
+  fab.setAttribute(
+    'aria-expanded',
+    String(open)
+  );
 
   if (open) {
-    if (!messages.children.length) welcome();
+    if (!messages.children.length) {
+      welcome();
+    }
+
     input.focus();
   } else {
     fab.focus();
   }
 }
+
+// ======================================
+// MENSAJES DE ERROR
+// ======================================
 
 function friendlyError(error) {
   return tr(
@@ -88,6 +116,10 @@ function friendlyError(error) {
     'No pude comunicarme con el asistente. Revisa el Worker y sus configuraciones.'
   );
 }
+
+// ======================================
+// ENVIAR PREGUNTAS A OPENAI
+// ======================================
 
 async function submitChat(event) {
   event.preventDefault();
@@ -105,6 +137,7 @@ async function submitChat(event) {
         'system'
       );
     }
+
     return;
   }
 
@@ -119,8 +152,13 @@ async function submitChat(event) {
   send.disabled = true;
   send.textContent = '…';
 
-  const waiting = addMessage(tr('Pensando…'), 'system');
+  const waiting = addMessage(
+    tr('Pensando…'),
+    'system'
+  );
 
+  // CORRECCION: ESTE TRY FALTABA
+  try {
     const result = await consultarSonoGuardIA(
       auth,
       'chat',
@@ -135,15 +173,22 @@ async function submitChat(event) {
       return;
     }
 
-    const answer = result?.answer || tr('No recibí respuesta.');
+    const answer =
+      result?.answer || tr('No recibí respuesta.');
 
     waiting.remove();
     addMessage(answer);
 
     history = [
       ...history,
-      { role: 'user', content: question },
-      { role: 'assistant', content: answer }
+      {
+        role: 'user',
+        content: question
+      },
+      {
+        role: 'assistant',
+        content: answer
+      }
     ].slice(-6);
 
   } catch (err) {
@@ -152,7 +197,11 @@ async function submitChat(event) {
     }
 
     waiting.remove();
-    addMessage(friendlyError(err), 'system');
+
+    addMessage(
+      friendlyError(err),
+      'system'
+    );
 
   } finally {
     working = false;
@@ -162,14 +211,35 @@ async function submitChat(event) {
   }
 }
 
-fab.addEventListener('click', () => openChat(panel.hidden));
+// ======================================
+// BOTON FLOTANTE
+// ======================================
+
+fab.addEventListener('click', () => {
+  openChat(panel.hidden);
+});
+
+// ======================================
+// CERRAR CHAT
+// ======================================
 
 $('sgChatClose').addEventListener(
   'click',
   () => openChat(false)
 );
 
-form.addEventListener('submit', submitChat);
+// ======================================
+// FORMULARIO
+// ======================================
+
+form.addEventListener(
+  'submit',
+  submitChat
+);
+
+// ======================================
+// CERRAR CON ESC
+// ======================================
 
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && !panel.hidden) {
@@ -177,26 +247,46 @@ document.addEventListener('keydown', event => {
   }
 });
 
+// ======================================
+// AUTENTICACION FIREBASE
+// ======================================
+
 onAuthStateChanged(auth, currentUser => {
-  const changed = user?.uid !== currentUser?.uid;
+  const changed =
+    user?.uid !== currentUser?.uid;
+
   user = currentUser;
+
+  // Mostrar la burbuja a cualquier
+  // usuario que haya iniciado sesion.
   root.hidden = !currentUser;
 
   if (!currentUser) {
     conversationVersion++;
     panel.hidden = true;
-    fab.setAttribute('aria-expanded', 'false');
+
+    fab.setAttribute(
+      'aria-expanded',
+      'false'
+    );
+
     history = [];
     messages.replaceChildren();
+
   } else if (changed) {
     welcome();
   }
 });
 
-// Al cambiar ES/EN, mostrar el saludo nuevo
-// y comenzar una conversación en ese idioma.
+// ======================================
+// CAMBIO DE IDIOMA ES / EN
+// ======================================
+
 document.addEventListener(
   'sonoguard:language-change',
-  () => welcome()
+  () => {
+    if (user) {
+      welcome();
+    }
+  }
 );
-
