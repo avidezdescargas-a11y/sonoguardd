@@ -61,7 +61,20 @@
 #sgIaContainer .history-card button{padding:7px 9px;font-size:12px}
 #sgIaContainer .history-card h3{font-size:15px;margin:6px 0}
 #sgIaContainer .ai-result{white-space:pre-wrap;line-height:1.6;border:1px solid #488775;background:#103c38;padding:17px;border-radius:12px;margin-top:16px;color:#e3fff8}
-#sgIaContainer .status{position:fixed;right:20px;bottom:18px;max-width:400px;background:#143e4a;border:1px solid #61b6ba;padding:13px 18px;border-radius:12px;color:#fff;display:none;z-index:30;box-shadow:0 8px 40px #0009}
+#sgIaContainer .status{
+  position:fixed;
+  right:20px;
+  bottom:18px;
+  max-width:400px;
+  background:#143e4a;
+  border:1px solid #61b6ba;
+  padding:13px 18px;
+  border-radius:12px;
+  color:#fff;
+  display:none;
+  z-index:30;
+  box-shadow:0 8px 40px #0009
+}
 #sgIaContainer .status.visible{display:block}
 #sgIaContainer .status.error{background:#562d35;border-color:#c56e77}
 #sgIaContainer footer{font-size:12px;color:#8da9b9;border-top:1px solid #253d50;text-align:center;padding:24px 16px}
