@@ -108,7 +108,6 @@ const translated = {
   "SONOGUARD · Prototipo académico · Micrófono PC ahora, integración Arduino en la siguiente etapa.": "SONOGUARD · Academic prototype · Computer microphone now; Arduino integration planned for the next stage.",
   "📸 Evidencia acústica": "📸 Acoustic report",
   "← Volver al panel acústico": "← Back to sound dashboard",
-  "PROYECTO ACADÉMICO DE PRUEBA · Registro ciudadano informativo de ruido. No solicita visitas oficiales automáticamente. Sin calibración se muestra un índice digital relativo de 0 a 100, no un nivel ambiental certificado.": "ACADEMIC TEST PROJECT · Citizen noise reports for information. Does not automatically request official visits. Without calibration, a 0–100 digital relative index is displayed, not a certified environmental sound level.",
   "Abre SonoGuard con tu sesión": "Open SonoGuard with your account",
   "Este módulo comparte la sesión de Firebase del panel principal. No necesitas iniciar sesión una segunda vez.": "This module shares the Firebase session of the main dashboard. You do not need to sign in again.",
   "Ir a SonoGuard e iniciar sesión": "Go to SonoGuard and sign in",
